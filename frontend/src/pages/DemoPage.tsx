@@ -159,7 +159,9 @@ export default function DemoPage({ lang }: DemoPageProps) {
     <>
       {/* Upload state */}
       {state === 'idle' && (
-        <UploadZone onUpload={handleUpload} disabled={false} lang={lang} />
+        <div className="flex items-center justify-center">
+          <UploadZone onUpload={handleUpload} disabled={false} lang={lang} />
+        </div>
       )}
 
       {/* Loading state */}

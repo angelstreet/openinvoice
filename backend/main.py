@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -132,12 +133,12 @@ async def extract_invoice(request: Request, file: UploadFile = File(...)):
         yield _sse_event("log", "text_extraction", "Extracting text from document...", t0)
         try:
             if content_type == "application/pdf":
-                raw_text, pages = extract_text_from_pdf(file_bytes)
+                raw_text, pages = await asyncio.to_thread(extract_text_from_pdf, file_bytes)
                 method = "pdfplumber"
                 if not raw_text.strip():
                     method = "OCR (tesseract)"
             else:
-                raw_text = extract_text_from_image(file_bytes)
+                raw_text = await asyncio.to_thread(extract_text_from_image, file_bytes)
                 pages = 1
                 method = "OCR (tesseract)"
         except Exception as e:
@@ -167,7 +168,7 @@ async def extract_invoice(request: Request, file: UploadFile = File(...)):
         # -- Step 2: Field extraction --
         yield _sse_event("log", "field_extraction", "Running invoice2data template matching...", t0)
         try:
-            fields, confidence = extract_fields_from_text(raw_text, file_bytes, filename)
+            fields, confidence = await asyncio.to_thread(extract_fields_from_text, raw_text, file_bytes, filename)
         except Exception as e:
             yield _sse_event("error", "field_extraction", f"Field extraction failed: {e}", t0)
             _update_document_status(document_id, status="error")
@@ -194,7 +195,7 @@ async def extract_invoice(request: Request, file: UploadFile = File(...)):
 
         # -- Step 3: Validation --
         yield _sse_event("log", "validation", "Validating extracted fields...", t0)
-        warnings = validate_fields(fields)
+        warnings = await asyncio.to_thread(validate_fields, fields)
 
         if warnings:
             yield _sse_event("log", "validation", f"Validation warnings: {', '.join(warnings)}", t0)

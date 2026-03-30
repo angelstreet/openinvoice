@@ -32,13 +32,14 @@ const translations = {
     amount: 'Amount',
     noValue: '—',
     // Processing log
-    pipelineLabel: 'processing pipeline',
-    waiting: 'waiting...',
+    pipelineLabel: 'En cours de traitement',
+    waiting: 'Progression...',
     // Footer
     footerText: 'OpenInvoice — AI-powered invoice extraction',
     footerPowered: '',
     demoBadge: 'DEMO',
     // Navigation
+    navExtract: 'Extract',
     navDemo: 'Demo',
     navHistory: 'History',
     navDashboard: 'Dashboard',
@@ -79,7 +80,7 @@ const translations = {
   },
   fr: {
     title: 'OpenInvoice',
-    subtitle: 'Importez une facture pour en extraire les données structurées',
+    subtitle: 'Importez une facture pour extraire les données',
     uploadTitle: 'Déposez votre facture ici',
     uploadSubtitle: 'ou cliquez pour sélectionner un fichier (PDF, PNG, JPG — max 10 Mo)',
     processing: 'Traitement en cours',
@@ -105,12 +106,13 @@ const translations = {
     unitPrice: 'Prix unitaire',
     amount: 'Montant',
     noValue: '—',
-    pipelineLabel: 'pipeline de traitement',
-    waiting: 'en attente...',
+    pipelineLabel: 'En cours de traitement',
+    waiting: 'Progression...',
     footerText: 'OpenInvoice — Extraction de factures par IA',
     footerPowered: '',
     demoBadge: 'DEMO',
     // Navigation
+    navExtract: 'Extraction',
     navDemo: 'Démo',
     navHistory: 'Historique',
     navDashboard: 'Tableau de bord',

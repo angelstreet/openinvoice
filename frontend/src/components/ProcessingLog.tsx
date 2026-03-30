@@ -4,11 +4,19 @@ import type { Lang } from '../i18n';
 import type { LogEntry } from '../types';
 
 const STEP_ICONS: Record<string, string> = {
-  start: '\u25B6',
-  text_extraction: '\u{1F4C4}',
-  field_extraction: '\u{1F9E0}',
-  validation: '\u2705',
-  done: '\u{1F3C1}',
+  start: '▶',
+  text_extraction: '📄',
+  field_extraction: '🧠',
+  validation: '✓',
+  done: '✓',
+};
+
+const STEP_COLORS: Record<string, string> = {
+  start: 'text-slate-400',
+  text_extraction: 'text-blue-500',
+  field_extraction: 'text-amber-500',
+  validation: 'text-emerald-500',
+  done: 'text-emerald-600',
 };
 
 interface Props {
@@ -24,54 +32,47 @@ export default function ProcessingLog({ logs, elapsed, lang }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  const isDone = logs.length > 0 && logs[logs.length - 1]?.step === 'done';
+
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-slate-900 rounded-xl overflow-hidden shadow-lg">
-        {/* Header bar */}
-        <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-            </div>
-            <span className="text-slate-400 text-xs font-mono ml-2">{t(lang, 'pipelineLabel')}</span>
-          </div>
-          <div className="text-slate-400 text-xs font-mono">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            {t(lang, 'pipelineLabel')}
+          </span>
+          <span className={`text-xs font-mono tabular-nums ${isDone ? 'text-emerald-600' : 'text-slate-400'}`}>
             {elapsed.toFixed(1)}s
-          </div>
+          </span>
         </div>
 
         {/* Log entries */}
-        <div className="p-4 font-mono text-sm max-h-80 overflow-y-auto">
+        <div className="px-4 py-2 max-h-72 overflow-y-auto divide-y divide-slate-50">
           {logs.map((log, i) => (
-            <div key={i} className="flex gap-3 py-1">
-              <span className="text-slate-500 w-14 text-right shrink-0">
+            <div key={i} className="flex items-center gap-3 py-1.5 text-sm">
+              <span className="text-slate-400 text-xs font-mono tabular-nums w-12 text-right shrink-0">
                 {log.elapsed.toFixed(2)}s
               </span>
-              <span className="w-5 text-center shrink-0">
-                {STEP_ICONS[log.step] || '\u25CF'}
+              <span className={`w-5 text-center shrink-0 ${STEP_COLORS[log.step] || 'text-slate-400'}`}>
+                {STEP_ICONS[log.step] || '●'}
               </span>
-              <span className={
-                log.step === 'done'
-                  ? 'text-green-400'
-                  : 'text-slate-300'
-              }>
+              <span className={`${log.step === 'done' ? 'text-emerald-700 font-medium' : 'text-slate-700'}`}>
                 {log.message}
               </span>
             </div>
           ))}
 
-          {/* Blinking cursor while processing */}
-          {logs.length > 0 && logs[logs.length - 1]?.step !== 'done' && (
-            <div className="flex gap-3 py-1">
-              <span className="text-slate-500 w-14 text-right shrink-0">
+          {/* Waiting indicator */}
+          {logs.length > 0 && !isDone && (
+            <div className="flex items-center gap-3 py-1.5 text-sm">
+              <span className="text-slate-400 text-xs font-mono tabular-nums w-12 text-right shrink-0">
                 {elapsed.toFixed(2)}s
               </span>
-              <span className="w-5 text-center shrink-0 text-blue-400 animate-pulse">
-                {'\u25CF'}
+              <span className="w-5 text-center shrink-0">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
               </span>
-              <span className="text-slate-500 animate-pulse">{t(lang, 'waiting')}</span>
+              <span className="text-slate-400 animate-pulse">{t(lang, 'waiting')}</span>
             </div>
           )}
           <div ref={bottomRef} />

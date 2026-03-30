@@ -27,7 +27,7 @@ export default function AuthButton({ lang }: AuthButtonProps) {
 
   return (
     <div className="flex items-center gap-3">
-      <UserButton afterSignOutUrl="/openinvoice/" />
+      <UserButton afterSignOutUrl="/" />
     </div>
   );
 }
