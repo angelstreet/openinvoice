@@ -36,7 +36,8 @@ const translations = {
     waiting: 'waiting...',
     // Footer
     footerText: 'OpenInvoice — AI-powered invoice extraction',
-    footerPowered: 'Powered by MiniMax LLM',
+    footerPowered: '',
+    demoBadge: 'DEMO',
     // Navigation
     navDemo: 'Demo',
     navHistory: 'History',
@@ -107,7 +108,8 @@ const translations = {
     pipelineLabel: 'pipeline de traitement',
     waiting: 'en attente...',
     footerText: 'OpenInvoice — Extraction de factures par IA',
-    footerPowered: 'Propulsé par MiniMax LLM',
+    footerPowered: '',
+    demoBadge: 'DEMO',
     // Navigation
     navDemo: 'Démo',
     navHistory: 'Historique',

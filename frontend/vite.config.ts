@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/openinvoice/',
+  base: '/',
   server: {
     port: 3023,
     allowedHosts: ['openinvoice.angelstreet.io'],

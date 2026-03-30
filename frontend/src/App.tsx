@@ -29,7 +29,7 @@ export default function App() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <img src="/openinvoice/logo.png" alt="OpenInvoice" className="h-9 w-9" />
+            <img src="/logo.png" alt="OpenInvoice" className="h-16 w-16" />
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{t(lang, 'title')}</h1>
               <p className="mt-0.5 text-sm text-slate-500 hidden sm:block">
@@ -118,9 +118,9 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between text-xs text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-center gap-3 text-xs text-slate-400">
           <span>{t(lang, 'footerText')}</span>
-          <span>{t(lang, 'footerPowered')}</span>
+          <span className="px-2 py-0.5 bg-orange-400 text-white font-bold rounded text-[10px] uppercase tracking-wider">{t(lang, 'demoBadge')}</span>
         </div>
       </footer>
     </div>

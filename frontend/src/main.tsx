@@ -9,7 +9,7 @@ import './index.css';
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const router = (
-  <BrowserRouter basename="/openinvoice/">
+  <BrowserRouter>
     <App />
   </BrowserRouter>
 );
