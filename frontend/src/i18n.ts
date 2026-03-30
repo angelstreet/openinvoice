@@ -8,7 +8,8 @@ const translations = {
     uploadSubtitle: 'or click to select a file (PDF, PNG, JPG — max 10 MB)',
     processing: 'Processing',
     extractionFailed: 'Extraction failed',
-    tryAnother: 'Try Another',
+    tryAnother: 'Retry',
+    back: 'Back',
     downloadJson: 'Download JSON',
     processingLog: 'Processing log',
     // Document preview
@@ -86,6 +87,7 @@ const translations = {
     processing: 'Traitement en cours',
     extractionFailed: 'Extraction échouée',
     tryAnother: 'Réessayer',
+    back: 'Retour',
     downloadJson: 'Télécharger JSON',
     processingLog: 'Journal de traitement',
     preview: 'Aperçu du document',

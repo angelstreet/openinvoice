@@ -22,6 +22,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
   const stopTimer = useCallback(() => {
@@ -31,7 +32,14 @@ export default function DemoPage({ lang }: DemoPageProps) {
     }
   }, []);
 
-  useEffect(() => () => stopTimer(), [stopTimer]);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => { stopTimer(); stopPolling(); }, [stopTimer, stopPolling]);
 
   const handleUpload = async (uploadedFile: File) => {
     setFile(uploadedFile);
@@ -60,73 +68,39 @@ export default function DemoPage({ lang }: DemoPageProps) {
         throw new Error(body || `Server responded with ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error('No response body');
+      const { job_id } = await response.json();
 
-      let buffer = '';
-      let gotResult = false;
+      // Poll for progress
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await apiFetch(`/api/extract/${job_id}/status`);
+          if (!statusRes.ok) return;
+          const data = await statusRes.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          // Update logs
+          setLogs(data.logs as LogEntry[]);
 
-        buffer += decoder.decode(value, { stream: true });
-
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
-
-        for (const part of parts) {
-          const lines = part.split('\n');
-          let eventType = '';
-          let data = '';
-
-          for (const line of lines) {
-            if (line.startsWith('event:')) eventType = line.slice(6).trim();
-            else if (line.startsWith('data:')) data = line.slice(5).trim();
+          if (data.status === 'done') {
+            stopPolling();
+            stopTimer();
+            setResult(data.result as ExtractionResult);
+            setState('done');
+            // Clean up job on server
+            apiFetch(`/api/extract/${job_id}`, { method: 'DELETE' }).catch(() => {});
+          } else if (data.status === 'error') {
+            stopPolling();
+            stopTimer();
+            setErrorMsg(data.error || 'Extraction failed');
+            setState('error');
+            apiFetch(`/api/extract/${job_id}`, { method: 'DELETE' }).catch(() => {});
           }
-
-          if (!data) continue;
-
-          let parsed: Record<string, unknown> | null = null;
-          try {
-            parsed = JSON.parse(data);
-          } catch {
-            // JSON parse error, skip this event
-            continue;
-          }
-
-          try {
-            if (eventType === 'log') {
-              setLogs(prev => [...prev, {
-                step: parsed!.step as string,
-                message: parsed!.message as string,
-                elapsed: parsed!.elapsed as number,
-              }]);
-            } else if (eventType === 'error') {
-              setLogs(prev => [...prev, {
-                step: parsed!.step as string,
-                message: parsed!.message as string,
-                elapsed: parsed!.elapsed as number,
-              }]);
-              throw new Error(parsed!.message as string);
-            } else if (eventType === 'result') {
-              setResult((parsed!.result as ExtractionResult));
-              setState('done');
-              stopTimer();
-              gotResult = true;
-            }
-          } catch (e) {
-            throw e;
-          }
+        } catch {
+          // Polling error — keep trying
         }
-      }
-
-      if (!gotResult) {
-        stopTimer();
-      }
+      }, 1000);
     } catch (err) {
       stopTimer();
+      stopPolling();
       setErrorMsg(err instanceof Error ? err.message : 'An unexpected error occurred.');
       setState('error');
     }
@@ -134,6 +108,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
 
   const handleReset = () => {
     stopTimer();
+    stopPolling();
     setState('idle');
     setFile(null);
     setResult(null);
@@ -166,7 +141,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
 
       {/* Loading state */}
       {state === 'loading' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="text-center">
             <p className="text-lg font-medium text-slate-700">
               {t(lang, 'processing')} <span className="font-semibold">{file?.name}</span>
@@ -189,7 +164,16 @@ export default function DemoPage({ lang }: DemoPageProps) {
               </p>
               <p className="text-sm text-red-600 mt-1">{errorMsg}</p>
             </div>
-            <div className="flex justify-center mt-6">
+            <div className="flex justify-center gap-3 mt-6">
+              <button
+                onClick={handleReset}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+                {t(lang, 'back')}
+              </button>
               <button
                 onClick={handleReset}
                 className="px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
@@ -204,8 +188,11 @@ export default function DemoPage({ lang }: DemoPageProps) {
       {/* Result state */}
       {state === 'done' && result && file && (
         <>
-          <details className="mb-6 max-w-7xl">
-            <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-700 flex items-center gap-2">
+          <details className="mb-6 max-w-7xl group">
+            <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
+              <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
               <span>{t(lang, 'processingLog')} ({elapsed.toFixed(1)}s)</span>
             </summary>
             <div className="mt-3">
@@ -222,23 +209,22 @@ export default function DemoPage({ lang }: DemoPageProps) {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 mt-8">
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <button
+              onClick={handleReset}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+              </svg>
+              {t(lang, 'back')}
+            </button>
             <button
               onClick={handleDownloadJson}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
             >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
-                />
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
               </svg>
               {t(lang, 'downloadJson')}
             </button>

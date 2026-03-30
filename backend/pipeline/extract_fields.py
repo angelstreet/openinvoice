@@ -6,6 +6,8 @@ import json
 import logging
 import os
 import tempfile
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import anthropic
@@ -23,21 +25,63 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 _templates = read_templates(str(TEMPLATES_DIR)) if TEMPLATES_DIR.exists() else []
 
 
-def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) -> tuple[InvoiceFields, float]:
+@dataclass
+class ExtractionMeta:
+    """Metadata about the extraction process."""
+    method: str = ""              # "invoice2data" | "llm" | "none"
+    llm_model: str = ""
+    llm_input_tokens: int = 0
+    llm_output_tokens: int = 0
+    invoice2data_duration: float = 0.0
+    invoice2data_matched: bool = False
+    llm_duration: float = 0.0
+    templates_checked: int = 0
+    steps: list[dict] = field(default_factory=list)
+
+
+def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) -> tuple[InvoiceFields, float, ExtractionMeta]:
     """Try invoice2data first, fall back to LLM if it fails.
 
-    Returns (fields, confidence).
+    Returns (fields, confidence, meta).
     """
+    meta = ExtractionMeta(templates_checked=len(_templates))
+
     # Layer 1: invoice2data template matching
+    t0 = time.time()
     fields, confidence = _try_invoice2data(file_bytes, filename)
+    meta.invoice2data_duration = round(time.time() - t0, 2)
+    meta.steps.append({
+        "name": "invoice2data",
+        "duration": meta.invoice2data_duration,
+        "matched": fields is not None and confidence > 0.5,
+        "templates_checked": meta.templates_checked,
+    })
+
     if fields and confidence > 0.5:
+        meta.method = "invoice2data"
+        meta.invoice2data_matched = True
         logger.info("invoice2data matched with confidence %.2f", confidence)
-        return fields, confidence
+        return fields, confidence, meta
 
     # Layer 2: LLM fallback
     logger.info("invoice2data failed or low confidence, trying LLM fallback")
-    fields, confidence = _try_llm_extraction(raw_text)
-    return fields, confidence
+    t1 = time.time()
+    fields, confidence, llm_info = _try_llm_extraction(raw_text)
+    meta.llm_duration = round(time.time() - t1, 2)
+    meta.method = "llm" if confidence > 0 else "none"
+    meta.llm_model = llm_info.get("model", "")
+    meta.llm_input_tokens = llm_info.get("input_tokens", 0)
+    meta.llm_output_tokens = llm_info.get("output_tokens", 0)
+    meta.steps.append({
+        "name": "llm",
+        "duration": meta.llm_duration,
+        "model": meta.llm_model,
+        "input_tokens": meta.llm_input_tokens,
+        "output_tokens": meta.llm_output_tokens,
+        "success": confidence > 0,
+    })
+
+    return fields, confidence, meta
 
 
 def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields | None, float]:
@@ -46,7 +90,6 @@ def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields |
         logger.info("No invoice2data templates found")
         return None, 0.0
 
-    # invoice2data needs a file on disk
     suffix = Path(filename).suffix or ".pdf"
     try:
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -66,7 +109,6 @@ def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields |
     if not result:
         return None, 0.0
 
-    # Convert invoice2data result dict to our schema
     fields = InvoiceFields(
         supplier=result.get("issuer"),
         invoice_number=result.get("invoice_number"),
@@ -78,17 +120,22 @@ def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields |
     return fields, 0.75
 
 
-def _try_llm_extraction(raw_text: str) -> tuple[InvoiceFields, float]:
-    """Use MiniMax (Anthropic-compatible API) to extract invoice fields from raw text."""
+def _try_llm_extraction(raw_text: str) -> tuple[InvoiceFields, float, dict]:
+    """Use MiniMax (Anthropic-compatible API) to extract invoice fields from raw text.
+
+    Returns (fields, confidence, llm_info_dict).
+    """
     api_key = settings.MINIMAX_API_KEY
     if not api_key:
         logger.warning("MINIMAX_API_KEY not set, skipping LLM extraction")
-        return InvoiceFields(), 0.0
+        return InvoiceFields(), 0.0, {}
 
     client = anthropic.Anthropic(
         api_key=api_key,
         base_url="https://api.minimax.io/anthropic",
     )
+
+    model = "MiniMax-M2.7-highspeed"
 
     prompt = f"""Extract structured invoice data from the following text. Return ONLY valid JSON with no markdown, no explanation.
 
@@ -112,18 +159,23 @@ Return ONLY the JSON object:"""
 
     try:
         message = client.messages.create(
-            model="MiniMax-M2.7-highspeed",
+            model=model,
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
-        # MiniMax may return thinking blocks before text — find the text block
+
+        llm_info = {
+            "model": model,
+            "input_tokens": getattr(message.usage, "input_tokens", 0),
+            "output_tokens": getattr(message.usage, "output_tokens", 0),
+        }
+
         response_text = ""
         for block in message.content:
             if block.type == "text" and block.text:
                 response_text = block.text.strip()
                 break
 
-        # Parse JSON from response (handle possible markdown wrapping)
         if response_text.startswith("```"):
             lines = response_text.split("\n")
             response_text = "\n".join(lines[1:-1])
@@ -144,11 +196,11 @@ Return ONLY the JSON object:"""
             total=_to_float(data.get("total")),
             line_items=line_items,
         )
-        return fields, 0.85
+        return fields, 0.85, llm_info
 
     except Exception as e:
         logger.error("LLM extraction failed: %s", e)
-        return InvoiceFields(), 0.0
+        return InvoiceFields(), 0.0, {"model": model}
 
 
 def _to_float(val) -> float | None:
