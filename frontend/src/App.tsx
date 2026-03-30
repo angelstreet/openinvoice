@@ -29,6 +29,7 @@ export default function App() {
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
+            <img src="/openinvoice/logo.png" alt="OpenInvoice" className="h-9 w-9" />
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{t(lang, 'title')}</h1>
               <p className="mt-0.5 text-sm text-slate-500 hidden sm:block">
