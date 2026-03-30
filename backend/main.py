@@ -148,7 +148,7 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
             return
 
         # -- Step 2: Field extraction --
-        _add_log(job_id, "field_extraction", f"Trying invoice2data templates ({len(_templates)} templates)...", t0)
+        _add_log(job_id, "field_extraction", "Running extraction layers...", t0)
         try:
             fields, confidence, meta = await asyncio.to_thread(extract_fields_from_text, raw_text, file_bytes, filename)
         except Exception as e:
@@ -158,21 +158,26 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
             _update_document_status(document_id, status="error")
             return
 
-        # Log invoice2data step result
-        i2d_step = meta.steps[0] if meta.steps else {}
-        if i2d_step.get("matched"):
-            _add_log(job_id, "field_extraction", f"✓ invoice2data matched [{i2d_step.get('duration', 0)}s]", t0)
-        else:
-            _add_log(job_id, "field_extraction", f"✗ invoice2data — no match [{i2d_step.get('duration', 0)}s]", t0)
+        # Log each step from meta
+        for step in meta.steps:
+            name = step["name"]
+            dur = step.get("duration", 0)
+            if name == "regex":
+                found = step.get("fields_found", 0)
+                icon = "✓" if found > 0 else "✗"
+                _add_log(job_id, "field_extraction", f"{icon} Regex — {found} fields [{dur}s]", t0)
+            elif name == "invoice2data":
+                found = step.get("fields_found", 0)
+                icon = "✓" if found > 0 else "✗"
+                _add_log(job_id, "field_extraction", f"{icon} invoice2data ({step.get('templates_checked', 0)} templates) — {found} fields [{dur}s]", t0)
+            elif name == "llm":
+                tokens_in = step.get("input_tokens", 0)
+                tokens_out = step.get("output_tokens", 0)
+                model = step.get("model", "")
+                icon = "✓" if step.get("success") else "✗"
+                _add_log(job_id, "field_extraction", f"{icon} LLM {model} — {tokens_in} in / {tokens_out} out tokens [{dur}s]", t0)
 
-        # Log LLM step if used
-        if meta.method == "llm":
-            llm_step = meta.steps[1] if len(meta.steps) > 1 else {}
-            tokens_in = meta.llm_input_tokens
-            tokens_out = meta.llm_output_tokens
-            _add_log(job_id, "field_extraction",
-                     f"✓ LLM {meta.llm_model} — {tokens_in} in / {tokens_out} out tokens [{meta.llm_duration}s]", t0)
-        elif meta.method == "none":
+        if meta.method == "none":
             _add_log(job_id, "field_extraction", "✗ All extraction methods failed", t0)
 
         # Confidence summary

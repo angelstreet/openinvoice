@@ -84,7 +84,7 @@ export default function UploadZone({ onUpload, disabled, lang }: UploadZoneProps
         onDragLeave={handleDragLeave}
         onClick={() => !disabled && inputRef.current?.click()}
         className={`
-          border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200
+          border-2 border-dashed rounded-xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200
           ${dragOver ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 bg-transparent hover:border-slate-400'}
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}

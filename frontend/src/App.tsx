@@ -25,7 +25,7 @@ export default function App() {
     }`;
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="h-[100dvh] flex flex-col bg-slate-50 overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1 flex items-center relative">
@@ -33,7 +33,7 @@ export default function App() {
           <div className="flex items-center gap-2 sm:gap-4">
             <img src="/logo.png" alt="OpenInvoice" className="h-14 w-14" />
             <div>
-              <h1 className="text-lg sm:text-2xl font-bold text-slate-900">{t(lang, 'title')}</h1>
+              <h1 className="text-lg sm:text-2xl font-bold text-slate-900">Open<span className="text-orange-500">Invoice</span></h1>
               <p className="mt-0.5 text-sm text-slate-500 hidden sm:block">
                 {t(lang, 'subtitle')}
               </p>
@@ -90,7 +90,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-3 w-full pb-16 md:pb-3">
+      <main className="flex-1 min-h-0 flex flex-col max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-3 w-full pb-16 md:pb-3 overflow-auto">
         <Routes>
           <Route path="/" element={<DemoPage lang={lang} />} />
           <Route

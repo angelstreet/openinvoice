@@ -131,10 +131,10 @@ export default function DemoPage({ lang }: DemoPageProps) {
   };
 
   return (
-    <>
+    <div className="flex-1 flex flex-col">
       {/* Upload state */}
       {state === 'idle' && (
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center py-8 sm:py-0 sm:flex-1">
           <UploadZone onUpload={handleUpload} disabled={false} lang={lang} />
         </div>
       )}
@@ -237,6 +237,6 @@ export default function DemoPage({ lang }: DemoPageProps) {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
