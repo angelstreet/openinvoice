@@ -1,0 +1,14 @@
+issuer: Swiss Invoice Template
+keywords:
+  - Rechnung
+  - Betrag
+  - MwSt
+fields:
+  amount: (?:Total|Betrag|Gesamtbetrag)[:\s]+(?:CHF\s*)?(\d+[\.,]?\d*)
+  invoice_number: (?:Rechnung|Invoice)\s*(?:Nr|No|Number)?[:\s\.]*([A-Za-z0-9\-]+)
+  date: (?:Rechnung|Invoice)?\s*(?:Datum|Date)[:\s]*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})
+  due_date: (?:Zahlbar bis|F.llig|Due)[:\s]*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})
+options:
+  currency: CHF
+  decimal_separator: "."
+  remove_whitespace: true

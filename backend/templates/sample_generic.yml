@@ -1,0 +1,14 @@
+issuer: Generic Invoice Template
+keywords:
+  - Invoice
+  - Total
+  - Date
+fields:
+  amount: Total[:\s]+(\d+[\.,]?\d*)
+  invoice_number: Invoice\s*(?:No|Number|#)[:\s]*([A-Za-z0-9\-]+)
+  date: (?:Invoice\s*)?Date[:\s]*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})
+  due_date: Due\s*Date[:\s]*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})
+options:
+  currency: EUR
+  decimal_separator: "."
+  remove_whitespace: true
