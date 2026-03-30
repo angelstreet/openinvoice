@@ -201,7 +201,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
           </details>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-2">
+            <div className="hidden lg:block lg:col-span-2">
               <DocumentPreview file={file} lang={lang} />
             </div>
             <div className="lg:col-span-3">
@@ -209,7 +209,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 mt-8">
+          <div className="flex items-center justify-center gap-3 mt-3">
             <button
               onClick={handleReset}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"

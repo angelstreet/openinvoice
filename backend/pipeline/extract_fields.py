@@ -112,6 +112,12 @@ _PATTERNS = {
         re.compile(r"^(.+?)\s+INVOICE", re.IGNORECASE | re.MULTILINE),
         re.compile(r"^(.+?)\s+(?:Rechnung|Facture)", re.IGNORECASE | re.MULTILINE),
     ],
+    "client": [
+        # "Bill To: Ship To:\nShip Mode: ...\nAaron Hawkins ..." — skip Ship To + Ship Mode lines
+        re.compile(r"(?:Bill\s*To|Destinataire|Facturé\s*à|Kunde|Client)\s*:.*\n(?:.*(?:Ship|Mode).*\n)*\s*([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)+)", re.MULTILINE),
+        # "Bill To: John Doe" on same line
+        re.compile(r"(?:Bill\s*To|Destinataire|Facturé\s*à|Kunde|Client)\s*:\s+([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)+)"),
+    ],
     "invoice_number": [
         re.compile(r"(?:Invoice|Rechnung|Facture)\s*(?:No|Number|Nr)?\.?\s*[:#]?\s*(\w[\w\-/]+)", re.IGNORECASE),
         re.compile(r"#\s*(\d+)"),
@@ -161,6 +167,7 @@ def _try_regex(raw_text: str) -> InvoiceFields:
 
     return InvoiceFields(
         supplier=extracted.get("supplier"),
+        client=extracted.get("client"),
         invoice_number=extracted.get("invoice_number"),
         invoice_date=extracted.get("invoice_date"),
         due_date=extracted.get("due_date"),
@@ -228,6 +235,7 @@ def _merge_fields(a: InvoiceFields | None, b: InvoiceFields | None) -> InvoiceFi
 
     return InvoiceFields(
         supplier=pick(a.supplier, b.supplier),
+        client=pick(a.client, b.client),
         invoice_number=pick(a.invoice_number, b.invoice_number),
         invoice_date=pick(a.invoice_date, b.invoice_date),
         due_date=pick(a.due_date, b.due_date),
@@ -244,7 +252,7 @@ def _count_fields(fields: InvoiceFields | None) -> int:
     if not fields:
         return 0
     count = 0
-    for f in ("supplier", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "tax", "total"):
+    for f in ("supplier", "client", "invoice_number", "invoice_date", "due_date", "currency", "subtotal", "tax", "total"):
         v = getattr(fields, f, None)
         if v is not None and v != "":
             count += 1
@@ -267,7 +275,8 @@ def _try_llm_extraction(raw_text: str) -> tuple[InvoiceFields, float, dict]:
     prompt = f"""Extract structured invoice data from the following text. Return ONLY valid JSON with no markdown, no explanation.
 
 The JSON must have exactly these keys:
-- "supplier": string or null
+- "supplier": string or null (company that issued the invoice)
+- "client": string or null (person or company billed, from "Bill To" / "Destinataire")
 - "invoice_number": string or null
 - "invoice_date": string (YYYY-MM-DD) or null
 - "due_date": string (YYYY-MM-DD) or null
@@ -306,6 +315,7 @@ Return ONLY the JSON object:"""
         line_items = [LineItem(**item) for item in data.get("line_items", [])]
         fields = InvoiceFields(
             supplier=data.get("supplier"),
+            client=data.get("client"),
             invoice_number=data.get("invoice_number"),
             invoice_date=data.get("invoice_date"),
             due_date=data.get("due_date"),

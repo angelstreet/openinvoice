@@ -7,6 +7,7 @@ export interface LineItem {
 
 export interface ExtractedFields {
   supplier: string | null;
+  client: string | null;
   invoice_number: string | null;
   invoice_date: string | null;
   due_date: string | null;

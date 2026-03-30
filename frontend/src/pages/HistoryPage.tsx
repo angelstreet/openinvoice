@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { cacheGet, cacheSet } from '../lib/cache';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
 import type { DocumentListItem, DocumentListResponse } from '../types';
@@ -85,21 +86,34 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   const [loading, setLoading] = useState(true);
 
   const fetchDocuments = useCallback(async () => {
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: '20',
+      sort: sortField,
+      order: sortDir,
+    });
+    if (search.trim()) params.set('search', search.trim());
+    const cacheKey = `history:${params}`;
+
+    // Check cache first
+    const cached = cacheGet<DocumentListResponse>(cacheKey);
+    if (cached) {
+      setItems(cached.items);
+      setTotal(cached.total);
+      setPages(cached.pages);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        per_page: '20',
-        sort: sortField,
-        order: sortDir,
-      });
-      if (search.trim()) params.set('search', search.trim());
       const res = await apiFetch(`/api/documents?${params}`);
       if (res.ok) {
         const data: DocumentListResponse = await res.json();
         setItems(data.items);
         setTotal(data.total);
         setPages(data.pages);
+        cacheSet(cacheKey, data);
       }
     } catch {
       // silently fail
@@ -123,8 +137,8 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <span className="text-slate-300 ml-1">&#8597;</span>;
-    return <span className="text-slate-600 ml-1">{sortDir === 'asc' ? '&#8593;' : '&#8595;'}</span>;
+    if (sortField !== field) return <span className="text-slate-300 ml-1">{'\u2195'}</span>;
+    return <span className="text-slate-600 ml-1">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>;
   };
 
   const ThButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
@@ -138,8 +152,6 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-slate-800">{t(lang, 'historyTitle')}</h2>
-
       {/* Search */}
       <div className="relative">
         <svg

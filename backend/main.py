@@ -187,6 +187,8 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
         parts = []
         if fields.supplier:
             parts.append(f"Supplier: {fields.supplier}")
+        if fields.client:
+            parts.append(f"Client: {fields.client}")
         if fields.invoice_number:
             parts.append(f"Invoice: {fields.invoice_number}")
         if fields.total is not None:

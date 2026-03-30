@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { cacheGet, cacheSet } from '../lib/cache';
 import DocumentPreview from '../components/DocumentPreview';
 import ExtractedFields from '../components/ExtractedFields';
 import { t } from '../i18n';
@@ -25,23 +26,37 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
     let cancelled = false;
 
     async function fetchData() {
-      setLoading(true);
       setError(null);
 
-      try {
-        // Fetch document metadata
-        const metaRes = await apiFetch(`/api/documents/${id}`);
-        if (!metaRes.ok) throw new Error(`Failed to load document (${metaRes.status})`);
-        const metaData: DocumentListItem = await metaRes.json();
-        if (cancelled) return;
-        setDoc(metaData);
+      // Check cache for metadata
+      const cacheKey = `doc:${id}`;
+      const cached = cacheGet<DocumentListItem>(cacheKey);
+      if (cached) {
+        setDoc(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
 
-        // Fetch file blob
-        const fileRes = await apiFetch(`/api/documents/${id}/file`);
-        if (fileRes.ok) {
-          const blob = await fileRes.blob();
+      try {
+        // Fetch document metadata (even if cached, refresh in background)
+        if (!cached) {
+          const metaRes = await apiFetch(`/api/documents/${id}`);
+          if (!metaRes.ok) throw new Error(`Failed to load document (${metaRes.status})`);
+          const metaData: DocumentListItem = await metaRes.json();
           if (cancelled) return;
-          setFileUrl(URL.createObjectURL(blob));
+          setDoc(metaData);
+          cacheSet(cacheKey, metaData);
+        }
+
+        // Fetch file blob (not cached — blob URLs are cheap)
+        if (!fileUrl) {
+          const fileRes = await apiFetch(`/api/documents/${id}/file`);
+          if (fileRes.ok) {
+            const blob = await fileRes.blob();
+            if (cancelled) return;
+            setFileUrl(URL.createObjectURL(blob));
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -101,7 +116,6 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
       <button
         onClick={() => navigate('/history')}
         className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
@@ -111,8 +125,6 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
         </svg>
         {t(lang, 'backToHistory')}
       </button>
-
-      <h2 className="text-xl font-bold text-slate-800">{t(lang, 'documentDetail')}</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Document preview */}

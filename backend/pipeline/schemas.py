@@ -12,6 +12,7 @@ class LineItem(BaseModel):
 
 class InvoiceFields(BaseModel):
     supplier: str | None = None
+    client: str | None = None
     invoice_number: str | None = None
     invoice_date: str | None = None
     due_date: str | None = None

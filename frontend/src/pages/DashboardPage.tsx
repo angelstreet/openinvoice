@@ -88,26 +88,19 @@ export default function DashboardPage({ lang }: DashboardPageProps) {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-xl font-bold text-slate-800">{t(lang, 'dashboardTitle')}</h2>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title={t(lang, 'totalDocuments')}
-          value={stats.total_documents}
-        />
+      {/* KPI Row 1: counts */}
+      <div className="grid grid-cols-3 gap-4">
+        <KpiCard title="Total" value={stats.total_documents} />
+        <KpiCard title={lang === 'fr' ? 'Succès' : 'Success'} value={stats.success_count} />
+        <KpiCard title={lang === 'fr' ? 'Échec' : 'Fail'} value={stats.error_count} />
+      </div>
+
+      {/* KPI Row 2: success rate */}
+      <div className="grid grid-cols-1 gap-4">
         <KpiCard
           title={t(lang, 'successRate')}
           value={`${Math.round(stats.success_rate)}%`}
-          subtitle={`${stats.success_count} / ${stats.total_documents}`}
-        />
-        <KpiCard
-          title={t(lang, 'avgConfidence')}
-          value={`${Math.round(stats.avg_confidence * 100)}%`}
-        />
-        <KpiCard
-          title={t(lang, 'totalProcessed')}
-          value={formatCurrency(stats.total_amount)}
         />
       </div>
 

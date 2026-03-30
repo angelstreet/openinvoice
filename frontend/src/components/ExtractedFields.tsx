@@ -69,6 +69,7 @@ export default function ExtractedFields({ result, lang }: ExtractedFieldsProps) 
 
         <div className="space-y-0">
           <FieldRow label={t(lang, 'supplier')} value={fields.supplier} noValue={noValue} />
+          <FieldRow label={t(lang, 'client')} value={fields.client} noValue={noValue} />
           <FieldRow label={t(lang, 'invoiceNumber')} value={fields.invoice_number} noValue={noValue} />
           <FieldRow label={t(lang, 'invoiceDate')} value={fields.invoice_date} noValue={noValue} />
           <FieldRow label={t(lang, 'dueDate')} value={fields.due_date} noValue={noValue} />
@@ -93,13 +94,20 @@ export default function ExtractedFields({ result, lang }: ExtractedFieldsProps) 
         </div>
       </div>
 
-      {/* Line items */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <h3 className="text-lg font-semibold text-slate-800 mb-3">
-          {t(lang, 'lineItems')}
-        </h3>
-        <LineItemsTable items={fields.line_items} currency={fields.currency} lang={lang} />
-      </div>
+      {/* Line items — collapsed by default */}
+      <details className="bg-white rounded-xl shadow-sm border border-slate-200 group">
+        <summary className="flex items-center justify-between p-5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <h3 className="text-lg font-semibold text-slate-800">
+            {t(lang, 'lineItems')}
+          </h3>
+          <svg className="w-5 h-5 text-slate-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </summary>
+        <div className="px-5 pb-5">
+          <LineItemsTable items={fields.line_items} currency={fields.currency} lang={lang} />
+        </div>
+      </details>
 
       {/* Warnings */}
       {warnings && warnings.length > 0 && (

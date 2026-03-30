@@ -17,6 +17,7 @@ const translations = {
     // Extracted fields
     extractedFields: 'Extracted Fields',
     supplier: 'Supplier',
+    client: 'Client',
     invoiceNumber: 'Invoice Number',
     invoiceDate: 'Invoice Date',
     dueDate: 'Due Date',
@@ -93,6 +94,7 @@ const translations = {
     preview: 'Aperçu du document',
     extractedFields: 'Champs extraits',
     supplier: 'Fournisseur',
+    client: 'Destinataire',
     invoiceNumber: 'Numéro de facture',
     invoiceDate: 'Date de facture',
     dueDate: 'Date d\'échéance',
