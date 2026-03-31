@@ -59,6 +59,18 @@ def list_documents(
     if user_id is not None:
         query = query.filter(Document.user_id == user_id)
 
+    # Exclude duplicates
+    dialect = db.bind.dialect.name if db.bind else "sqlite"
+    if dialect == "postgresql":
+        query = query.filter(~Document.warnings.op("@>")(cast('["duplicate_invoice"]', String)))
+    else:
+        query = query.filter(
+            or_(
+                Document.warnings.is_(None),
+                ~func.json_extract(Document.warnings, "$").like("%duplicate_invoice%"),
+            )
+        )
+
     # Search filter — match against supplier or invoice_number inside JSON, or filename
     if search:
         search_pattern = f"%{search}%"

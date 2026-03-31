@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     CLERK_SECRET_KEY: str = ""
     CLERK_JWKS_URL: str = ""
     MINIMAX_API_KEY: str = ""
+    APP_JWT_SECRET: str = ""
     CORS_ORIGINS: str = "http://localhost:3023,https://openinvoice.angelstreet.io"
     WEBHOOK_KEY: str = ""
 

@@ -25,6 +25,7 @@ from pipeline.schemas import ExtractionResult, InvoiceFields
 from pipeline.validate import validate_fields
 from routes.dashboard import router as dashboard_router
 from routes.documents import router as documents_router
+from routes.teams_auth import router as teams_auth_router
 from routes.webhook import router as webhook_router, set_jobs_store
 
 logging.basicConfig(level=logging.INFO)
@@ -46,6 +47,7 @@ app.add_middleware(
 app.include_router(documents_router)
 app.include_router(dashboard_router)
 app.include_router(webhook_router)
+app.include_router(teams_auth_router)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -218,9 +220,28 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
             confidence=confidence, fields=fields, warnings=warnings,
         )
 
+        # Duplicate check — same invoice_number + date + total + supplier for same owner
+        is_duplicate = False
+        if fields.invoice_number and fields.total is not None:
+            db = SessionLocal()
+            try:
+                from sqlalchemy import cast, String
+                existing = db.query(Document).filter(
+                    Document.user_id == current_user_id,
+                    Document.id != document_id,
+                    Document.extracted_fields["invoice_number"].as_string() == fields.invoice_number,
+                    Document.extracted_fields["total"].as_string() == str(fields.total),
+                ).first()
+                is_duplicate = existing is not None
+            finally:
+                db.close()
+
+        if is_duplicate:
+            warnings.append("duplicate_invoice")
+
         _update_document_on_success(document_id, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
 
-        _add_log(job_id, "done", f"Processing complete in {total_time}s", t0)
+        _add_log(job_id, "done", f"Processing complete in {total_time}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)
         job["status"] = "done"
         job["result"] = result.model_dump()
         job["document_id"] = document_id

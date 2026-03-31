@@ -36,6 +36,20 @@ def get_dashboard_stats(
     if user_id is not None:
         base_query = base_query.filter(Document.user_id == user_id)
 
+    # Exclude duplicates
+    dialect = db.bind.dialect.name if db.bind else "sqlite"
+    if dialect == "postgresql":
+        from sqlalchemy import cast, String, or_
+        base_query = base_query.filter(~Document.warnings.op("@>")(cast('["duplicate_invoice"]', String)))
+    else:
+        from sqlalchemy import or_
+        base_query = base_query.filter(
+            or_(
+                Document.warnings.is_(None),
+                ~func.json_extract(Document.warnings, "$").like("%duplicate_invoice%"),
+            )
+        )
+
     total_documents = base_query.count()
     success_count = base_query.filter(Document.status == "success").count()
     error_count = base_query.filter(Document.status == "error").count()

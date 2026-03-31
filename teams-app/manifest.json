@@ -1,0 +1,43 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.21/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.21",
+  "version": "1.0.0",
+  "id": "5157c994-ce18-4e8b-a8e6-2e992910c595",
+  "developer": {
+    "name": "AngelStreet",
+    "websiteUrl": "https://openinvoice.angelstreet.io/",
+    "privacyUrl": "https://openinvoice.angelstreet.io/privacy",
+    "termsOfUseUrl": "https://openinvoice.angelstreet.io/terms"
+  },
+  "name": {
+    "short": "OpenInvoice",
+    "full": "OpenInvoice - AI Invoice Extraction"
+  },
+  "description": {
+    "short": "AI-powered invoice data extraction",
+    "full": "Extract structured data from any invoice PDF or image using AI. Upload, extract, and organize your invoice data in seconds."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#18274B",
+  "staticTabs": [
+    {
+      "entityId": "openinvoice-home",
+      "name": "OpenInvoice",
+      "contentUrl": "https://openinvoice.angelstreet.io/?team=openinvoice",
+      "websiteUrl": "https://openinvoice.angelstreet.io/",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "openinvoice.angelstreet.io"
+  ]
+}

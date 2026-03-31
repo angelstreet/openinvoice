@@ -65,7 +65,7 @@ def _update_doc(document_id: str | None, **kwargs):
 
 async def _run_webhook_pipeline(
     job_id: str, file_bytes: bytes, filename: str, content_type: str,
-    source: str, source_meta: dict,
+    source: str, source_meta: dict, user_id: str | None = None,
 ):
     """Run extraction pipeline for webhook-ingested files."""
     job = _jobs[job_id]
@@ -86,6 +86,7 @@ async def _run_webhook_pipeline(
             doc = Document(
                 id=doc_id, filename=filename, file_size=len(file_bytes),
                 content_type=content_type, status="processing",
+                user_id=user_id,
                 original_file_path=file_path, source=source,
                 source_metadata=source_meta,
             )
@@ -126,12 +127,30 @@ async def _run_webhook_pipeline(
         # Validation
         warnings = await asyncio.to_thread(validate_fields, fields)
 
+        # Duplicate check — same invoice_number + total for same owner
+        is_duplicate = False
+        if fields.invoice_number and fields.total is not None:
+            db = SessionLocal()
+            try:
+                existing = db.query(Document).filter(
+                    Document.user_id == user_id,
+                    Document.id != document_id,
+                    Document.extracted_fields["invoice_number"].as_string() == fields.invoice_number,
+                    Document.extracted_fields["total"].as_string() == str(fields.total),
+                ).first()
+                is_duplicate = existing is not None
+            finally:
+                db.close()
+
+        if is_duplicate:
+            warnings.append("duplicate_invoice")
+
         # Save
         result = ExtractionResult(filename=filename, pages=pages, raw_text=raw_text, confidence=confidence, fields=fields, warnings=warnings)
         _update_doc(document_id, status="success", raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
 
         total = round(time.time() - t0, 2)
-        _add_log(job_id, "done", f"Complete in {total}s", t0)
+        _add_log(job_id, "done", f"Complete in {total}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)
         job["status"] = "done"
         job["result"] = result.model_dump()
         job["document_id"] = document_id
@@ -148,6 +167,7 @@ async def _run_webhook_pipeline(
 async def webhook_ingest(
     file: UploadFile = File(...),
     source: str = Form("webhook"),
+    team: str = Form(""),
     sender_email: str = Form(""),
     subject: str = Form(""),
     folder_path: str = Form(""),
@@ -177,6 +197,8 @@ async def webhook_ingest(
         source = "webhook"
 
     filename = file.filename or "unknown"
+    team_user_id = f"team:{team}" if team else None
+
     source_meta = {}
     if sender_email:
         source_meta["sender_email"] = sender_email
@@ -188,7 +210,7 @@ async def webhook_ingest(
     # Start pipeline
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "processing", "logs": [], "result": None, "document_id": None, "error": None}
-    asyncio.create_task(_run_webhook_pipeline(job_id, file_bytes, filename, content_type, source, source_meta))
+    asyncio.create_task(_run_webhook_pipeline(job_id, file_bytes, filename, content_type, source, source_meta, team_user_id))
 
     logger.info("Webhook ingest: %s from %s (%s)", filename, source, sender_email or "n/a")
 

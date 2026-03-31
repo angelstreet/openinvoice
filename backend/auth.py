@@ -1,4 +1,4 @@
-"""Clerk JWT authentication dependencies for FastAPI."""
+"""JWT authentication dependencies for FastAPI — supports Clerk and Teams app tokens."""
 
 from __future__ import annotations
 
@@ -36,46 +36,61 @@ def _get_jwks_client() -> PyJWKClient | None:
     return _jwks_client
 
 
+def _auth_configured() -> bool:
+    """Return True if any auth provider is configured."""
+    return bool(settings.CLERK_SECRET_KEY) or bool(settings.APP_JWT_SECRET)
+
+
 def get_optional_user(request: Request) -> str | None:
     """Return the authenticated user ID or None.
 
-    If CLERK_SECRET_KEY is not configured, auth is disabled and None is returned.
-    If the token is missing or invalid, None is returned (no error).
+    Tries Clerk JWKS (RS256) first, then app JWT (HS256) for Teams sessions.
+    If no auth provider is configured, returns None (open access).
     """
-    if not settings.CLERK_SECRET_KEY:
-        return None
-
-    client = _get_jwks_client()
-    if client is None:
-        return None
-
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return None
 
     token = auth_header[7:]
-    try:
-        signing_key = client.get_signing_key_from_jwt(token)
-        payload = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            options={"verify_aud": False},
-        )
-        user_id = payload.get("sub")
-        return user_id
-    except Exception as e:
-        logger.debug("JWT verification failed: %s", e)
-        return None
+
+    # Try Clerk first (RS256 via JWKS)
+    if settings.CLERK_SECRET_KEY:
+        client = _get_jwks_client()
+        if client:
+            try:
+                signing_key = client.get_signing_key_from_jwt(token)
+                payload = jwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=["RS256"],
+                    options={"verify_aud": False},
+                )
+                return payload.get("sub")
+            except Exception:
+                pass  # Fall through to app JWT
+
+    # Try app JWT (HS256 — Teams sessions)
+    if settings.APP_JWT_SECRET:
+        try:
+            payload = jwt.decode(
+                token,
+                settings.APP_JWT_SECRET,
+                algorithms=["HS256"],
+            )
+            return payload.get("sub")
+        except Exception:
+            pass
+
+    return None
 
 
 def get_required_user(user_id: str | None = Depends(get_optional_user)) -> str | None:
-    """Require an authenticated user when Clerk is configured.
+    """Require an authenticated user when any auth provider is configured.
 
-    When CLERK_SECRET_KEY is not set, auth is disabled and None is returned
-    (open access). When Clerk IS configured, raises 401 if not authenticated.
+    When no auth provider is configured, returns None (open access).
+    When auth IS configured, raises 401 if not authenticated.
     """
-    if not settings.CLERK_SECRET_KEY:
+    if not _auth_configured():
         return None  # Auth disabled — open access
     if user_id is None:
         raise HTTPException(status_code=401, detail="Authentication required")

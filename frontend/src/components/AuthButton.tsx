@@ -8,9 +8,22 @@ interface AuthButtonProps {
 }
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const isTeamsContext = new URLSearchParams(window.location.search).has('team');
 
 export default function AuthButton({ lang }: AuthButtonProps) {
-  const { isLoaded, isSignedIn } = useAppAuth();
+  const { isLoaded, isSignedIn, userName } = useAppAuth();
+
+  // Teams context — show user name, no Clerk buttons
+  if (isTeamsContext) {
+    if (isSignedIn && userName) {
+      return (
+        <span className="px-3 py-1.5 text-sm font-medium text-slate-600">
+          {userName}
+        </span>
+      );
+    }
+    return null;
+  }
 
   // Don't render anything if Clerk is not configured or not loaded
   if (!clerkPubKey || !isLoaded) return null;

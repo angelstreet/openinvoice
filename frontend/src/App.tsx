@@ -12,6 +12,8 @@ import { t } from './i18n';
 import type { Lang } from './i18n';
 
 const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const isTeamsContext = new URLSearchParams(window.location.search).has('team');
+const authConfigured = clerkConfigured || isTeamsContext;
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('fr');
@@ -41,7 +43,7 @@ export default function App() {
           </div>
 
           {/* Center: navigation (absolutely centered, won't shift) */}
-          {clerkConfigured && isSignedIn && (
+          {authConfigured && isSignedIn && (
             <nav className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
               <NavLink to="/" end className={navLinkClass}>
                 {t(lang, 'navExtract')}
@@ -130,7 +132,7 @@ export default function App() {
       </main>
 
       {/* Footer — hidden on mobile only when bottom nav is visible */}
-      <footer className={`border-t border-slate-200 mt-auto ${clerkConfigured && isSignedIn ? 'hidden md:block' : ''}`}>
+      <footer className={`border-t border-slate-200 mt-auto ${authConfigured && isSignedIn ? 'hidden md:block' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-3 text-xs text-slate-400">
           <span>{t(lang, 'footerText')}</span>
           <span className="px-2 py-0.5 bg-orange-400 text-white font-bold rounded text-[10px] uppercase tracking-wider">{t(lang, 'demoBadge')}</span>
@@ -138,7 +140,7 @@ export default function App() {
       </footer>
 
       {/* Bottom nav — mobile only, only when logged in */}
-      {clerkConfigured && isSignedIn && (
+      {authConfigured && isSignedIn && (
         <div className="md:hidden">
           <BottomNav lang={lang} />
         </div>

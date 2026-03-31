@@ -9,12 +9,13 @@ interface ProtectedRouteProps {
 }
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const isTeamsContext = new URLSearchParams(window.location.search).has('team');
 
 export default function ProtectedRoute({ children, lang }: ProtectedRouteProps) {
   const { isLoaded, isSignedIn } = useAppAuth();
 
-  // If Clerk is not configured, redirect to demo page
-  if (!clerkPubKey) {
+  // If no auth provider is active, redirect to demo page
+  if (!clerkPubKey && !isTeamsContext) {
     return <Navigate to="/" replace />;
   }
 

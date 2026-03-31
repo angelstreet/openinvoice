@@ -6,6 +6,20 @@ from sqlalchemy import Column, DateTime, Float, Integer, JSON, String, Text
 from db.base import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String(100), primary_key=True)
+    provider = Column(String(20), nullable=False)
+    provider_id = Column(String(100), nullable=False)
+    tenant_id = Column(String(100), nullable=True)
+    email = Column(String(255), nullable=True)
+    name = Column(String(255), nullable=True)
+    team_username = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Document(Base):
     __tablename__ = "documents"
 
