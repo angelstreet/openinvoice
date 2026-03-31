@@ -21,3 +21,5 @@ class Document(Base):
     warnings = Column(JSON, nullable=True)
     user_id = Column(String(100), nullable=True)
     original_file_path = Column(String, nullable=True)
+    source = Column(String(20), default="upload")  # upload, outlook, onedrive, sharepoint, webhook
+    source_metadata = Column(JSON, nullable=True)   # sender_email, subject, folder_path, etc.

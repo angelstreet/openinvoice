@@ -25,6 +25,7 @@ from pipeline.schemas import ExtractionResult, InvoiceFields
 from pipeline.validate import validate_fields
 from routes.dashboard import router as dashboard_router
 from routes.documents import router as documents_router
+from routes.webhook import router as webhook_router, set_jobs_store
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ app.add_middleware(
 # Register routers
 app.include_router(documents_router)
 app.include_router(dashboard_router)
+app.include_router(webhook_router)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
@@ -56,6 +58,7 @@ ALLOWED_CONTENT_TYPES = {
 
 # In-memory job store for progress tracking
 _jobs: dict[str, dict[str, Any]] = {}
+set_jobs_store(_jobs)
 
 
 @app.on_event("startup")

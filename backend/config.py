@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     CLERK_JWKS_URL: str = ""
     MINIMAX_API_KEY: str = ""
     CORS_ORIGINS: str = "http://localhost:3023,https://openinvoice.angelstreet.io"
+    WEBHOOK_KEY: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
