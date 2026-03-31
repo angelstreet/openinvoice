@@ -12,6 +12,21 @@ interface HistoryPageProps {
 
 type SortField = 'filename' | 'uploaded_at' | 'supplier' | 'invoice_number' | 'total' | 'confidence' | 'status';
 type SortDir = 'asc' | 'desc';
+type DatePreset = 'all' | '24h' | 'week' | 'month' | 'year' | 'custom';
+
+function getDateRange(preset: DatePreset): { from: string; to: string } {
+  if (preset === 'all' || preset === 'custom') return { from: '', to: '' };
+  const now = new Date();
+  const to = now.toISOString();
+  const from = new Date(now);
+  switch (preset) {
+    case '24h': from.setDate(from.getDate() - 1); break;
+    case 'week': from.setDate(from.getDate() - 7); break;
+    case 'month': from.setMonth(from.getMonth() - 1); break;
+    case 'year': from.setFullYear(from.getFullYear() - 1); break;
+  }
+  return { from: from.toISOString(), to };
+}
 
 function formatDate(dateStr: string, lang: Lang): string {
   try {
@@ -85,6 +100,28 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [loading, setLoading] = useState(true);
 
+  // Filters
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Load supplier list
+  useEffect(() => {
+    apiFetch('/api/documents/suppliers').then(res => {
+      if (res.ok) res.json().then((data: { suppliers: string[] }) => setSuppliers(data.suppliers));
+    }).catch(() => {});
+  }, []);
+
+  // Compute active date range
+  const dateRange = datePreset === 'custom'
+    ? { from: customFrom ? new Date(customFrom).toISOString() : '', to: customTo ? new Date(customTo + 'T23:59:59').toISOString() : '' }
+    : getDateRange(datePreset);
+
+  const hasActiveFilters = datePreset !== 'all' || supplier !== '';
+
   const fetchDocuments = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(page),
@@ -93,9 +130,11 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
       order: sortDir,
     });
     if (search.trim()) params.set('search', search.trim());
-    const cacheKey = `history:${params}`;
+    if (supplier) params.set('supplier', supplier);
+    if (dateRange.from) params.set('date_from', dateRange.from);
+    if (dateRange.to) params.set('date_to', dateRange.to);
 
-    // Check cache first
+    const cacheKey = `history:${params}`;
     const cached = cacheGet<DocumentListResponse>(cacheKey);
     if (cached) {
       setItems(cached.items);
@@ -120,7 +159,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, search, sortField, sortDir]);
+  }, [page, search, sortField, sortDir, supplier, dateRange.from, dateRange.to]);
 
   useEffect(() => {
     fetchDocuments();
@@ -133,6 +172,35 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
       setSortField(field);
       setSortDir('asc');
     }
+    setPage(1);
+  };
+
+  const handleExportCsv = async () => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (supplier) params.set('supplier', supplier);
+    if (dateRange.from) params.set('date_from', dateRange.from);
+    if (dateRange.to) params.set('date_to', dateRange.to);
+
+    try {
+      const res = await apiFetch(`/api/documents/export/csv?${params}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch { /* silently fail */ }
+  };
+
+  const clearFilters = () => {
+    setDatePreset('all');
+    setCustomFrom('');
+    setCustomTo('');
+    setSupplier('');
     setPage(1);
   };
 
@@ -150,27 +218,136 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
     </th>
   );
 
+  const presetButtons: { key: DatePreset; label: string }[] = [
+    { key: 'all', label: t(lang, 'allTime') },
+    { key: '24h', label: t(lang, 'last24h') },
+    { key: 'week', label: t(lang, 'lastWeek') },
+    { key: 'month', label: t(lang, 'lastMonth') },
+    { key: 'year', label: t(lang, 'lastYear') },
+    { key: 'custom', label: t(lang, 'custom') },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Search */}
-      <div className="relative">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-        </svg>
-        <input
-          type="text"
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
-          placeholder={t(lang, 'searchPlaceholder')}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+    <div className="space-y-4">
+      {/* Search + Filter toggle + Export */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            placeholder={t(lang, 'searchPlaceholder')}
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowFilters(f => !f)}
+            className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+              hasActiveFilters
+                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <svg className="inline-block w-4 h-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+            </svg>
+            {t(lang, 'filters')}{hasActiveFilters ? ' *' : ''}
+          </button>
+          <button
+            onClick={handleExportCsv}
+            className="px-4 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
+          >
+            <svg className="inline-block w-4 h-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {t(lang, 'exportCsv')}
+          </button>
+        </div>
       </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
+          {/* Date presets */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-2">{t(lang, 'dateRange')}</label>
+            <div className="flex flex-wrap gap-1.5">
+              {presetButtons.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => { setDatePreset(key); setPage(1); }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                    datePreset === key
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom date inputs */}
+          {datePreset === 'custom' && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'from')}</label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={e => { setCustomFrom(e.target.value); setPage(1); }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'to')}</label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={e => { setCustomTo(e.target.value); setPage(1); }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Supplier filter */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'supplierFilter')}</label>
+            <select
+              value={supplier}
+              onChange={e => { setSupplier(e.target.value); setPage(1); }}
+              className="w-full sm:w-64 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">{t(lang, 'allSuppliers')}</option>
+              {suppliers.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Clear filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              {t(lang, 'clear')}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
