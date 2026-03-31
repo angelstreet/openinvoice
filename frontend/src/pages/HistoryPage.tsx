@@ -89,6 +89,33 @@ function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
   );
 }
 
+function SourceBadge({ source, lang }: { source: string; lang: Lang }) {
+  let label: string;
+  let cls: string;
+  switch (source) {
+    case 'outlook':
+      label = t(lang, 'sourceOutlook');
+      cls = 'bg-blue-50 text-blue-700';
+      break;
+    case 'onedrive':
+      label = t(lang, 'sourceOnedrive');
+      cls = 'bg-indigo-50 text-indigo-700';
+      break;
+    case 'webhook':
+      label = t(lang, 'sourceWebhook');
+      cls = 'bg-purple-50 text-purple-700';
+      break;
+    default:
+      label = t(lang, 'sourceWeb');
+      cls = 'bg-slate-100 text-slate-600';
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 export default function HistoryPage({ lang }: HistoryPageProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<DocumentListItem[]>([]);
@@ -192,6 +219,18 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
         a.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
+      }
+    } catch { /* silently fail */ }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, docId: string) => {
+    e.stopPropagation(); // Don't navigate to detail
+    if (!confirm(t(lang, 'confirmDelete'))) return;
+    try {
+      const res = await apiFetch(`/api/documents/${docId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setItems(prev => prev.filter(d => d.id !== docId));
+        setTotal(prev => prev - 1);
       }
     } catch { /* silently fail */ }
   };
@@ -371,6 +410,8 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                   <ThButton field="total">{t(lang, 'total')}</ThButton>
                   <ThButton field="confidence">{t(lang, 'confidence')}</ThButton>
                   <ThButton field="status">Status</ThButton>
+                  <th className="text-left py-3 px-4 font-medium text-slate-600 text-sm">{t(lang, 'source')}</th>
+                  <th className="py-3 px-2 w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -400,6 +441,20 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={doc.status} lang={lang} />
+                    </td>
+                    <td className="py-3 px-4">
+                      <SourceBadge source={doc.source} lang={lang} />
+                    </td>
+                    <td className="py-3 px-2">
+                      <button
+                        onClick={(e) => handleDelete(e, doc.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                        title={t(lang, 'deleteDocument')}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 ))}

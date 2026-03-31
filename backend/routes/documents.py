@@ -44,6 +44,7 @@ def _doc_to_dict(doc: Document) -> dict:
         "warnings": doc.warnings,
         "user_id": doc.user_id,
         "original_file_path": doc.original_file_path,
+        "source": getattr(doc, "source", None) or "upload",
     }
 
 
@@ -238,3 +239,23 @@ def get_document_file(
         filename=doc.filename,
         media_type=doc.content_type or "application/octet-stream",
     )
+
+
+@router.delete("/documents/{doc_id}")
+def delete_document(
+    doc_id: str,
+    user_id: str | None = Depends(get_required_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a document and its file from disk."""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if user_id is not None and doc.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    # Remove file from disk
+    if doc.original_file_path and os.path.isfile(doc.original_file_path):
+        os.remove(doc.original_file_path)
+    db.delete(doc)
+    db.commit()
+    return {"ok": True}

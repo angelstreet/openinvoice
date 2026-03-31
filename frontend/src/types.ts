@@ -44,6 +44,7 @@ export interface DocumentListItem {
   extracted_fields: ExtractedFields | null;
   warnings: string[];
   user_id: string | null;
+  source: string;
 }
 
 export interface DocumentListResponse {
