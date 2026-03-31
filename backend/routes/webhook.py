@@ -179,7 +179,8 @@ async def webhook_ingest(
     # Auth
     if not settings.WEBHOOK_KEY:
         return JSONResponse(status_code=503, content={"detail": "Webhook not configured (WEBHOOK_KEY not set)"})
-    if x_webhook_key != settings.WEBHOOK_KEY:
+    if not x_webhook_key or x_webhook_key.strip() != settings.WEBHOOK_KEY.strip():
+        logger.warning("Webhook auth failed. Received key: %r", x_webhook_key)
         return JSONResponse(status_code=401, content={"detail": "Invalid webhook key"})
 
     # Validate file
