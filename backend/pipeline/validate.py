@@ -2,9 +2,24 @@
 
 from __future__ import annotations
 
+import re
+
 from .schemas import InvoiceFields
 
 REQUIRED_FIELDS = ["supplier", "invoice_number", "invoice_date", "total"]
+
+# Patterns that look like dates, not invoice numbers
+_DATE_PATTERNS = [
+    r"^\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}$",   # 01/02/2024, 1-2-24
+    r"^\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2}$",       # 2024-01-02
+    r"^\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\w*\s+\d{2,4}$",
+]
+
+
+def _looks_like_date(value: str) -> bool:
+    """Return True if value looks like a date rather than an invoice number."""
+    v = value.strip().lower()
+    return any(re.match(p, v, re.IGNORECASE) for p in _DATE_PATTERNS)
 
 
 def validate_fields(fields: InvoiceFields) -> list[str]:
@@ -16,6 +31,13 @@ def validate_fields(fields: InvoiceFields) -> list[str]:
         value = getattr(fields, field_name, None)
         if value is None or value == "":
             warnings.append(f"missing_{field_name}")
+
+    # Check invoice_number isn't actually a date
+    if fields.invoice_number and _looks_like_date(fields.invoice_number):
+        warnings.append("invoice_number_is_date")
+        fields.invoice_number = None
+        if "missing_invoice_number" not in warnings:
+            warnings.append("missing_invoice_number")
 
     # Check totals add up
     if fields.subtotal is not None and fields.tax is not None and fields.total is not None:

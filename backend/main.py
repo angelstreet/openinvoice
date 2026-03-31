@@ -340,7 +340,9 @@ def _update_document_on_success(document_id: str | None, raw_text: str, extracte
                 doc.extracted_fields = extracted_fields
                 doc.confidence = confidence
                 doc.warnings = warnings
-                doc.status = "success"
+                # Mark as partial if critical fields are missing
+                critical_missing = [w for w in warnings if w in ("missing_supplier", "missing_total")]
+                doc.status = "partial" if critical_missing else "success"
                 db.commit()
         except Exception as e:
             logger.error("Failed to update document results: %s", e)

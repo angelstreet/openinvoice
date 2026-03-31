@@ -147,7 +147,9 @@ async def _run_webhook_pipeline(
 
         # Save
         result = ExtractionResult(filename=filename, pages=pages, raw_text=raw_text, confidence=confidence, fields=fields, warnings=warnings)
-        _update_doc(document_id, status="success", raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
+        critical_missing = [w for w in warnings if w in ("missing_supplier", "missing_total")]
+        doc_status = "partial" if critical_missing else "success"
+        _update_doc(document_id, status=doc_status, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
 
         total = round(time.time() - t0, 2)
         _add_log(job_id, "done", f"Complete in {total}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)

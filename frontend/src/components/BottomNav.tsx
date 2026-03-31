@@ -12,11 +12,12 @@ export default function BottomNav({ lang }: Props) {
   const location = useLocation();
   const navigate = useNavigate();
   const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-  const showProtected = clerkConfigured && isSignedIn;
+  const isTeamsContext = new URLSearchParams(window.location.search).has('team');
+  const showProtected = (clerkConfigured || isTeamsContext) && isSignedIn;
 
   const items = [
     {
-      label: t(lang, 'navDemo'),
+      label: t(lang, 'navExtract'),
       path: '/',
       icon: (active: boolean) => (
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.5}>
