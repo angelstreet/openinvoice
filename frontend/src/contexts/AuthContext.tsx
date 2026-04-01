@@ -59,34 +59,41 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
   const appTokenRef = useRef<string | null>(null);
   const expiryRef = useRef<number>(0);
   const refreshingRef = useRef<Promise<string | null> | null>(null);
+  // Persist Teams context so we can refresh tokens without calling the Teams SDK again
+  const teamsContextRef = useRef<{ user_id: string; display_name: string; upn: string; tenant_id: string } | null>(null);
+
+  /** Save token + Teams context to sessionStorage */
+  const saveCache = (token: string, expiry: number, userId: string, userName: string) => {
+    sessionStorage.setItem('oi_teams_auth', JSON.stringify({
+      token, expiry, userId, userName,
+      // Persist Teams context for SDK-free refresh
+      teamsContext: teamsContextRef.current,
+    }));
+  };
+
+  /** Exchange Teams context for an app token */
+  const exchangeToken = async (teamId: string): Promise<{ token: string; user_id: string; name: string }> => {
+    const ctx = teamsContextRef.current;
+    if (!ctx) throw new Error('No Teams context available');
+    const res = await fetch('/api/auth/teams-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...ctx, team: teamId }),
+    });
+    if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+    return res.json();
+  };
 
   const buildTokenGetter = (teamId: string) => async (): Promise<string | null> => {
     if (Date.now() > expiryRef.current) {
       if (!refreshingRef.current) {
         refreshingRef.current = (async () => {
           try {
-            const ctx = await teamsApp.getContext();
-            const refreshRes = await fetch('/api/auth/teams-context', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                user_id: ctx.user?.id,
-                display_name: ctx.user?.displayName ?? '',
-                upn: ctx.user?.userPrincipalName ?? '',
-                tenant_id: ctx.user?.tenant?.id ?? '',
-                team: teamId,
-              }),
-            });
-            const refreshData = await refreshRes.json();
-            appTokenRef.current = refreshData.token;
+            const data = await exchangeToken(teamId);
+            appTokenRef.current = data.token;
             expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000;
-            sessionStorage.setItem('oi_teams_auth', JSON.stringify({
-              token: refreshData.token,
-              expiry: expiryRef.current,
-              userId: refreshData.user_id,
-              userName: refreshData.name,
-            }));
-            return refreshData.token;
+            saveCache(data.token, expiryRef.current, data.user_id, data.name);
+            return data.token;
           } finally {
             refreshingRef.current = null;
           }
@@ -97,72 +104,78 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
     return appTokenRef.current;
   };
 
-  // Full Teams auth flow — used on mount and when resuming from background
-  const authenticate = async (cancelled: () => boolean) => {
+  /** Restore auth from sessionStorage cache (token + Teams context) */
+  const restoreFromCache = (cancelled: () => boolean): boolean => {
+    const cached = sessionStorage.getItem('oi_teams_auth');
+    if (!cached) return false;
     try {
-      // Check sessionStorage for cached token
-      const cached = sessionStorage.getItem('oi_teams_auth');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed.expiry > Date.now()) {
-            appTokenRef.current = parsed.token;
-            expiryRef.current = parsed.expiry;
+      const parsed = JSON.parse(cached);
+      if (parsed.expiry <= Date.now()) return false;
 
-            const tokenGetter = buildTokenGetter(team);
-            setTokenGetter(tokenGetter);
+      appTokenRef.current = parsed.token;
+      expiryRef.current = parsed.expiry;
+      if (parsed.teamsContext) teamsContextRef.current = parsed.teamsContext;
 
-            if (!cancelled()) {
-              setState({
-                isLoaded: true,
-                isSignedIn: true,
-                userId: parsed.userId,
-                userName: parsed.userName,
-                getToken: tokenGetter,
-              });
-            }
-            return; // cached token still valid
-          }
-        } catch { /* ignore bad cache */ }
+      const tokenGetter = buildTokenGetter(team);
+      setTokenGetter(tokenGetter);
+
+      if (!cancelled()) {
+        setState({
+          isLoaded: true,
+          isSignedIn: true,
+          userId: parsed.userId,
+          userName: parsed.userName,
+          getToken: tokenGetter,
+        });
       }
+      return true;
+    } catch { return false; }
+  };
 
-      // Initialize Teams SDK
-      await teamsApp.initialize();
-      const context = await teamsApp.getContext();
+  /** Full Teams auth — calls SDK to get context, then exchanges for app token */
+  const authenticateFromSdk = async (cancelled: () => boolean) => {
+    await teamsApp.initialize();
+    const context = await teamsApp.getContext();
 
-      const userId = context.user?.id;
-      if (!userId) throw new Error('No user ID in Teams context');
+    const userId = context.user?.id;
+    if (!userId) throw new Error('No user ID in Teams context');
 
-      const displayName = context.user?.displayName ?? '';
-      const upn = context.user?.userPrincipalName ?? '';
-      const tenantId = context.user?.tenant?.id ?? '';
+    // Save context so future refreshes don't need the SDK
+    teamsContextRef.current = {
+      user_id: userId,
+      display_name: context.user?.displayName ?? '',
+      upn: context.user?.userPrincipalName ?? '',
+      tenant_id: context.user?.tenant?.id ?? '',
+    };
 
-      // Exchange context for app token
-      const res = await fetch('/api/auth/teams-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          display_name: displayName,
-          upn: upn,
-          tenant_id: tenantId,
-          team,
-        }),
-      });
+    const data = await exchangeToken(team);
 
-      if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
-      const data = await res.json();
+    appTokenRef.current = data.token;
+    expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000;
+    saveCache(data.token, expiryRef.current, data.user_id, data.name);
 
-      appTokenRef.current = data.token;
-      expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000; // refresh 30 min before 8h expiry
+    const tokenGetter = buildTokenGetter(team);
+    setTokenGetter(tokenGetter);
 
-      // Cache in sessionStorage
-      sessionStorage.setItem('oi_teams_auth', JSON.stringify({
-        token: data.token,
-        expiry: expiryRef.current,
+    if (!cancelled()) {
+      setState({
+        isLoaded: true,
+        isSignedIn: true,
         userId: data.user_id,
         userName: data.name,
-      }));
+        getToken: tokenGetter,
+      });
+    }
+  };
+
+  /** Refresh using cached Teams context (no SDK needed) */
+  const refreshFromContext = async (cancelled: () => boolean): Promise<boolean> => {
+    if (!teamsContextRef.current) return false;
+    try {
+      const data = await exchangeToken(team);
+      appTokenRef.current = data.token;
+      expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000;
+      saveCache(data.token, expiryRef.current, data.user_id, data.name);
 
       const tokenGetter = buildTokenGetter(team);
       setTokenGetter(tokenGetter);
@@ -176,35 +189,52 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
           getToken: tokenGetter,
         });
       }
-    } catch (err) {
-      console.error('Teams auth failed:', err);
-      if (!cancelled()) {
-        setState({
-          isLoaded: true,
-          isSignedIn: false,
-          userId: null,
-          userName: null,
-          getToken: async () => null,
-        });
-      }
-    }
+      return true;
+    } catch { return false; }
   };
 
   // Initial auth on mount
   useEffect(() => {
     let cancelled = false;
-    authenticate(() => cancelled);
+    const isCancelled = () => cancelled;
+
+    (async () => {
+      // 1. Try sessionStorage cache
+      if (restoreFromCache(isCancelled)) return;
+      // 2. Fall back to Teams SDK
+      try {
+        await authenticateFromSdk(isCancelled);
+      } catch (err) {
+        console.error('Teams auth failed:', err);
+        if (!cancelled) {
+          setState({ isLoaded: true, isSignedIn: false, userId: null, userName: null, getToken: async () => null });
+        }
+      }
+    })();
+
     return () => { cancelled = true; };
   }, [team]);
 
-  // Re-authenticate when tab becomes visible again (Teams can clear sessionStorage on idle)
+  // Re-authenticate when tab becomes visible (Teams idle can expire token / clear storage)
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
       // Token still valid in memory — nothing to do
       if (appTokenRef.current && Date.now() < expiryRef.current) return;
-      // Lost token or expired — re-auth silently
-      authenticate(() => false);
+
+      const neverCancel = () => false;
+
+      // 1. Try sessionStorage (Teams may have preserved it)
+      if (restoreFromCache(neverCancel)) return;
+      // 2. Try refreshing with cached Teams context (no SDK needed — avoids Ocdi error)
+      refreshFromContext(neverCancel).then((ok) => {
+        if (ok) return;
+        // 3. Last resort — try SDK (may fail after idle, but worth trying)
+        authenticateFromSdk(neverCancel).catch((err) => {
+          console.error('Teams re-auth failed after idle:', err);
+          setState({ isLoaded: true, isSignedIn: false, userId: null, userName: null, getToken: async () => null });
+        });
+      });
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
