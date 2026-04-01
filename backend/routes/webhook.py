@@ -6,6 +6,7 @@ import asyncio
 import dataclasses
 import logging
 import os
+import re
 import time
 import uuid
 from typing import Any
@@ -213,6 +214,8 @@ async def webhook_ingest(
         source = "webhook"
 
     filename = file.filename or "unknown"
+    # Strip UUID prefix if present (e.g. from re-ingested files)
+    filename = re.sub(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_', '', filename)
     team_user_id = f"team:{team}" if team else None
 
     source_meta = {}

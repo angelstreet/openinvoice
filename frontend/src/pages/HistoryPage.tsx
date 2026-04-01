@@ -53,43 +53,6 @@ function formatAmount(value: number | null | undefined, currency: string | null 
   return value.toFixed(2);
 }
 
-function ConfidenceBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-slate-400">—</span>;
-  const pct = Math.round(score * 100);
-  let cls: string;
-  if (score >= 0.8) cls = 'bg-green-100 text-green-800';
-  else if (score >= 0.5) cls = 'bg-yellow-100 text-yellow-800';
-  else cls = 'bg-red-100 text-red-800';
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      {pct}%
-    </span>
-  );
-}
-
-function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
-  let cls: string;
-  let label: string;
-  switch (status) {
-    case 'success':
-      cls = 'bg-green-100 text-green-800';
-      label = t(lang, 'status_success');
-      break;
-    case 'error':
-      cls = 'bg-red-100 text-red-800';
-      label = t(lang, 'status_error');
-      break;
-    default:
-      cls = 'bg-blue-100 text-blue-800';
-      label = t(lang, 'status_processing');
-  }
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      {label}
-    </span>
-  );
-}
-
 function SourceBadge({ source, lang }: { source: string; lang: Lang }) {
   let label: string;
   let cls: string;
@@ -405,13 +368,11 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <ThButton field="filename">{t(lang, 'description')}</ThButton>
+                  <ThButton field="filename">{t(lang, 'fileName')}</ThButton>
                   <ThButton field="uploaded_at">{t(lang, 'invoiceDate')}</ThButton>
                   <ThButton field="supplier">{t(lang, 'supplier')}</ThButton>
                   <ThButton field="invoice_number">{t(lang, 'invoiceNumber')}</ThButton>
                   <ThButton field="total">{t(lang, 'total')}</ThButton>
-                  <ThButton field="confidence">{t(lang, 'confidence')}</ThButton>
-                  <ThButton field="status">Status</ThButton>
                   <th className="text-left py-3 px-4 font-medium text-slate-600 text-sm">{t(lang, 'source')}</th>
                   <th className="py-3 px-2 w-10"></th>
                 </tr>
@@ -441,14 +402,8 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                       {doc.extracted_fields?.invoice_number || '—'}
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-800 font-medium">
-                      {formatAmount(doc.extracted_fields?.total, doc.extracted_fields?.currency)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <ConfidenceBadge score={doc.confidence} />
-                    </td>
-                    <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5">
-                        <StatusBadge status={doc.status} lang={lang} />
+                        {formatAmount(doc.extracted_fields?.total, doc.extracted_fields?.currency)}
                         {doc.human_feedback?.verdict === 'OK' && (
                           <svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>
                         )}
