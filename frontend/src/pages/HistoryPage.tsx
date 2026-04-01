@@ -487,6 +487,11 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
             </h3>
             <div className="space-y-3">
               <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceDate')}</label>
+                <input type="date" value={editValues.invoice_date} onChange={e => setEditValues(v => ({ ...v, invoice_date: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'supplier')}</label>
                 <input type="text" value={editValues.supplier} onChange={e => setEditValues(v => ({ ...v, supplier: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -494,11 +499,6 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceNumber')}</label>
                 <input type="text" value={editValues.invoice_number} onChange={e => setEditValues(v => ({ ...v, invoice_number: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceDate')}</label>
-                <input type="date" value={editValues.invoice_date} onChange={e => setEditValues(v => ({ ...v, invoice_date: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
