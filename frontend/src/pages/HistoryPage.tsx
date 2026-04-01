@@ -281,9 +281,9 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
 
   return (
     <div className="space-y-3">
-      {/* Row 1: Search + CSV */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
+      {/* Filters — single row on desktop, wraps on mobile */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[180px]">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
@@ -295,19 +295,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
             className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <button
-          onClick={handleExportCsv}
-          className="px-3 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-          title={t(lang, 'exportCsv')}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-        </button>
-      </div>
 
-      {/* Row 2: Period + Supplier + Clear */}
-      <div className="flex flex-wrap gap-2 items-center">
         <select
           value={datePreset}
           onChange={e => { setDatePreset(e.target.value as DatePreset); setPage(1); }}
@@ -329,36 +317,29 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
           ))}
         </select>
 
-        {/* Custom date range — inline when selected */}
         {datePreset === 'custom' && (
           <>
-            <input
-              type="date"
-              value={customFrom}
-              onChange={e => { setCustomFrom(e.target.value); setPage(1); }}
-              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <span className="text-slate-400 text-sm">—</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={e => { setCustomTo(e.target.value); setPage(1); }}
-              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="date" value={customTo} onChange={e => { setCustomTo(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </>
         )}
 
         {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors"
-            title={t(lang, 'clear')}
-          >
+          <button onClick={clearFilters} className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors" title={t(lang, 'clear')}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
         )}
+
+        <button onClick={handleExportCsv} className="px-3 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors" title={t(lang, 'exportCsv')}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+        </button>
       </div>
 
       {/* Table */}
