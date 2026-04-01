@@ -79,7 +79,7 @@ def teams_context_auth(body: TeamsContextRequest):
     app_token = jwt.encode(
         {
             "sub": team_owner_id,
-            "exp": now + timedelta(hours=1),
+            "exp": now + timedelta(hours=8),
         },
         settings.APP_JWT_SECRET,
         algorithm="HS256",

@@ -60,11 +60,74 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
   const expiryRef = useRef<number>(0);
   const refreshingRef = useRef<Promise<string | null> | null>(null);
 
+  const buildTokenGetter = (teamId: string) => async (): Promise<string | null> => {
+    if (Date.now() > expiryRef.current) {
+      if (!refreshingRef.current) {
+        refreshingRef.current = (async () => {
+          try {
+            const ctx = await teamsApp.getContext();
+            const refreshRes = await fetch('/api/auth/teams-context', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: ctx.user?.id,
+                display_name: ctx.user?.displayName ?? '',
+                upn: ctx.user?.userPrincipalName ?? '',
+                tenant_id: ctx.user?.tenant?.id ?? '',
+                team: teamId,
+              }),
+            });
+            const refreshData = await refreshRes.json();
+            appTokenRef.current = refreshData.token;
+            expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000;
+            sessionStorage.setItem('oi_teams_auth', JSON.stringify({
+              token: refreshData.token,
+              expiry: expiryRef.current,
+              userId: refreshData.user_id,
+              userName: refreshData.name,
+            }));
+            return refreshData.token;
+          } finally {
+            refreshingRef.current = null;
+          }
+        })();
+      }
+      return refreshingRef.current;
+    }
+    return appTokenRef.current;
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
       try {
+        // Check sessionStorage for cached token
+        const cached = sessionStorage.getItem('oi_teams_auth');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.expiry > Date.now()) {
+              appTokenRef.current = parsed.token;
+              expiryRef.current = parsed.expiry;
+
+              const tokenGetter = buildTokenGetter(team);
+              setTokenGetter(tokenGetter);
+
+              if (!cancelled) {
+                setState({
+                  isLoaded: true,
+                  isSignedIn: true,
+                  userId: parsed.userId,
+                  userName: parsed.userName,
+                  getToken: tokenGetter,
+                });
+              }
+              return; // cached token still valid
+            }
+          } catch { /* ignore bad cache */ }
+        }
+
         // Initialize Teams SDK
         await teamsApp.initialize();
         const context = await teamsApp.getContext();
@@ -93,40 +156,17 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
         const data = await res.json();
 
         appTokenRef.current = data.token;
-        expiryRef.current = Date.now() + 55 * 60 * 1000; // refresh 5 min before 1h expiry
+        expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000; // refresh 30 min before 8h expiry
 
-        const tokenGetter = async (): Promise<string | null> => {
-          // Lazy refresh with deduplication
-          if (Date.now() > expiryRef.current) {
-            if (!refreshingRef.current) {
-              refreshingRef.current = (async () => {
-                try {
-                  const ctx = await teamsApp.getContext();
-                  const refreshRes = await fetch('/api/auth/teams-context', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      user_id: ctx.user?.id,
-                      display_name: ctx.user?.displayName ?? '',
-                      upn: ctx.user?.userPrincipalName ?? '',
-                      tenant_id: ctx.user?.tenant?.id ?? '',
-                      team,
-                    }),
-                  });
-                  const refreshData = await refreshRes.json();
-                  appTokenRef.current = refreshData.token;
-                  expiryRef.current = Date.now() + 55 * 60 * 1000;
-                  return refreshData.token;
-                } finally {
-                  refreshingRef.current = null;
-                }
-              })();
-            }
-            return refreshingRef.current;
-          }
-          return appTokenRef.current;
-        };
+        // Cache in sessionStorage
+        sessionStorage.setItem('oi_teams_auth', JSON.stringify({
+          token: data.token,
+          expiry: expiryRef.current,
+          userId: data.user_id,
+          userName: data.name,
+        }));
 
+        const tokenGetter = buildTokenGetter(team);
         setTokenGetter(tokenGetter);
 
         if (!cancelled) {
