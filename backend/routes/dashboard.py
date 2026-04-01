@@ -165,3 +165,139 @@ def get_dashboard_stats(
         "top_suppliers": top_suppliers,
         "unique_suppliers": len(unique_suppliers),
     }
+
+
+LLM_INPUT_RATE = 0.10 / 1_000_000   # $0.10 per 1M tokens
+LLM_OUTPUT_RATE = 0.30 / 1_000_000  # $0.30 per 1M tokens
+
+
+@router.get("/dashboard/quality")
+def get_quality_stats(
+    user_id: str | None = Depends(get_required_user),
+    db: Session = Depends(get_db),
+):
+    """Quality KPIs for platform evaluation."""
+    base = db.query(Document)
+    if user_id is not None:
+        base = base.filter(Document.user_id == user_id)
+
+    all_docs = base.all()
+    total = len(all_docs)
+    if total == 0:
+        return {"total": 0}
+
+    # Method distribution
+    method_counts: dict[str, int] = defaultdict(int)
+    method_confidence: dict[str, list[float]] = defaultdict(list)
+    method_durations: dict[str, list[float]] = defaultdict(list)
+    llm_total_input = 0
+    llm_total_output = 0
+    llm_doc_count = 0
+    corrected_count = 0
+    human_ok = 0
+    human_nok = 0
+    human_total = 0
+    ai_ok = 0
+    ai_nok = 0
+    ai_total = 0
+    agreements = 0
+    disagreements = 0
+    false_positives = 0  # AI=OK but human=NOK
+    recent_disagreements = []
+
+    for doc in all_docs:
+        meta = doc.pipeline_meta or {} if hasattr(doc, 'pipeline_meta') else {}
+        method = meta.get("method", "unknown")
+        method_counts[method] += 1
+
+        if doc.confidence is not None:
+            method_confidence[method].append(doc.confidence)
+
+        dur = meta.get("total_duration")
+        if dur is not None:
+            method_durations[method].append(dur)
+
+        # LLM usage
+        inp = meta.get("llm_input_tokens", 0)
+        out = meta.get("llm_output_tokens", 0)
+        if inp > 0 or out > 0:
+            llm_total_input += inp
+            llm_total_output += out
+            llm_doc_count += 1
+
+        # Corrections
+        cf = getattr(doc, 'corrected_fields', None)
+        if cf and len(cf) > 0:
+            corrected_count += 1
+
+        # Human feedback
+        hf = getattr(doc, 'human_feedback', None)
+        if hf and hf.get("verdict"):
+            human_total += 1
+            if hf["verdict"] == "OK":
+                human_ok += 1
+            else:
+                human_nok += 1
+
+        # AI feedback
+        af = getattr(doc, 'ai_feedback', None)
+        if af and af.get("verdict"):
+            ai_total += 1
+            if af["verdict"] == "OK":
+                ai_ok += 1
+            else:
+                ai_nok += 1
+
+        # Agreement
+        if hf and af and hf.get("verdict") and af.get("verdict"):
+            if hf["verdict"] == af["verdict"]:
+                agreements += 1
+            else:
+                disagreements += 1
+                if len(recent_disagreements) < 10:
+                    recent_disagreements.append({
+                        "id": doc.id,
+                        "filename": doc.filename,
+                        "ai_verdict": af["verdict"],
+                        "human_verdict": hf["verdict"],
+                        "ai_comment": af.get("comment", ""),
+                        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+                    })
+                if af["verdict"] == "OK" and hf["verdict"] == "NOK":
+                    false_positives += 1
+
+    # Compute aggregates
+    llm_cost = llm_total_input * LLM_INPUT_RATE + llm_total_output * LLM_OUTPUT_RATE
+    review_total = agreements + disagreements
+    agreement_rate = round(agreements / review_total * 100, 1) if review_total > 0 else 0.0
+    correction_rate = round(corrected_count / total * 100, 1) if total > 0 else 0.0
+    false_positive_rate = round(false_positives / human_total * 100, 1) if human_total > 0 else 0.0
+
+    avg_duration = {}
+    for m, durs in method_durations.items():
+        avg_duration[m] = round(sum(durs) / len(durs), 2) if durs else 0
+
+    avg_conf_by_method = {}
+    for m, confs in method_confidence.items():
+        avg_conf_by_method[m] = round(sum(confs) / len(confs), 3) if confs else 0
+
+    return {
+        "total": total,
+        "method_distribution": [{"method": m, "count": c} for m, c in sorted(method_counts.items(), key=lambda x: -x[1])],
+        "confidence_by_method": [{"method": m, "avg_confidence": avg_conf_by_method.get(m, 0)} for m in method_counts],
+        "duration_by_method": [{"method": m, "avg_duration": avg_duration.get(m, 0)} for m in method_counts],
+        "llm_usage": {
+            "documents": llm_doc_count,
+            "total_input_tokens": llm_total_input,
+            "total_output_tokens": llm_total_output,
+            "total_cost": round(llm_cost, 4),
+        },
+        "correction_rate": correction_rate,
+        "corrected_count": corrected_count,
+        "human_feedback": {"ok": human_ok, "nok": human_nok, "total": human_total},
+        "ai_feedback": {"ok": ai_ok, "nok": ai_nok, "total": ai_total},
+        "agreement_rate": agreement_rate,
+        "false_positive_rate": false_positive_rate,
+        "avg_duration_overall": round(sum(sum(d) for d in method_durations.values()) / max(sum(len(d) for d in method_durations.values()), 1), 2),
+        "recent_disagreements": recent_disagreements,
+    }

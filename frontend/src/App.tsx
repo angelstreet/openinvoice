@@ -8,6 +8,7 @@ import DemoPage from './pages/DemoPage';
 import HistoryPage from './pages/HistoryPage';
 import DocumentDetailPage from './pages/DocumentDetailPage';
 import DashboardPage from './pages/DashboardPage';
+import QualityPage from './pages/QualityPage';
 import { t } from './i18n';
 import type { Lang } from './i18n';
 
@@ -53,6 +54,9 @@ export default function App() {
               </NavLink>
               <NavLink to="/dashboard" className={navLinkClass}>
                 {t(lang, 'navDashboard')}
+              </NavLink>
+              <NavLink to="/quality" className={navLinkClass}>
+                {lang === 'fr' ? 'Qualité' : 'Quality'}
               </NavLink>
             </nav>
           )}
@@ -116,6 +120,14 @@ export default function App() {
             element={
               <ProtectedRoute lang={lang}>
                 <DashboardPage lang={lang} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/quality"
+            element={
+              <ProtectedRoute lang={lang}>
+                <QualityPage lang={lang} />
               </ProtectedRoute>
             }
           />
