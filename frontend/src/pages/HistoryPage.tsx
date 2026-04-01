@@ -263,7 +263,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
 
   const ThButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <th
-      className="text-left py-3 px-4 font-medium text-slate-600 text-sm cursor-pointer hover:text-slate-900 select-none"
+      className="text-left py-1.5 px-3 font-medium text-slate-600 text-sm cursor-pointer hover:text-slate-900 select-none"
       onClick={() => handleSort(field)}
     >
       {children}<SortIcon field={field} />
@@ -363,7 +363,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                   <ThButton field="invoice_number">{t(lang, 'invoiceNumber')}</ThButton>
                   <ThButton field="total">{t(lang, 'total')}</ThButton>
                   <ThButton field="source">{t(lang, 'source')}</ThButton>
-                  <th className="py-3 px-2 text-left font-medium text-slate-600 text-sm">Actions</th>
+                  <th className="py-1.5 px-2 text-left font-medium text-slate-600 text-sm">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -373,7 +373,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                     onClick={() => navigate(withSearch(`/history/${doc.id}`))}
                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors group"
                   >
-                    <td className="py-3 px-4 text-sm text-slate-800 font-medium truncate max-w-[200px]">
+                    <td className="py-1.5 px-3 text-sm text-slate-800 font-medium truncate max-w-[200px]">
                       <span className="inline-flex items-center gap-1.5">
                         {doc.corrected_fields && Object.keys(doc.corrected_fields).length > 0 && (
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
@@ -381,16 +381,16 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                         {doc.filename.replace(/\.(pdf|png|jpg|jpeg)$/i, '')}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600">
+                    <td className="py-1.5 px-3 text-sm text-slate-600">
                       {formatDate(doc.uploaded_at, lang)}
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600">
+                    <td className="py-1.5 px-3 text-sm text-slate-600">
                       {doc.extracted_fields?.supplier || '—'}
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600">
+                    <td className="py-1.5 px-3 text-sm text-slate-600">
                       {doc.extracted_fields?.invoice_number || '—'}
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-800 font-medium">
+                    <td className="py-1.5 px-3 text-sm text-slate-800 font-medium">
                       <span className="inline-flex items-center gap-1.5">
                         {formatAmount(doc.extracted_fields?.total, doc.extracted_fields?.currency)}
                         {doc.human_feedback?.verdict === 'OK' && (
@@ -401,10 +401,10 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                         )}
                       </span>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-1.5 px-3">
                       <SourceBadge source={doc.source} lang={lang} />
                     </td>
-                    <td className="py-3 px-2">
+                    <td className="py-1.5 px-2">
                       <div className="flex gap-0.5">
                         <button
                           onClick={(e) => handleEditClick(e, doc)}
