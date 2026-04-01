@@ -5,6 +5,7 @@ import { cacheGet, cacheSet } from '../lib/cache';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
 import type { DocumentListItem, DocumentListResponse } from '../types';
+import { withSearch } from '../bootstrap';
 
 interface HistoryPageProps {
   lang: Lang;
@@ -419,7 +420,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                 {items.map(doc => (
                   <tr
                     key={doc.id}
-                    onClick={() => navigate(`/history/${doc.id}`)}
+                    onClick={() => navigate(withSearch(`/history/${doc.id}`))}
                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     <td className="py-3 px-4 text-sm text-slate-800 font-medium truncate max-w-[200px]">

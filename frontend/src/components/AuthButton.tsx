@@ -2,13 +2,13 @@ import { SignInButton, UserButton } from '@clerk/clerk-react';
 import { useAppAuth } from '../contexts/AuthContext';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
+import { isTeamsContext } from '../bootstrap';
 
 interface AuthButtonProps {
   lang: Lang;
 }
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const isTeamsContext = new URLSearchParams(window.location.search).has('team');
 
 export default function AuthButton({ lang }: AuthButtonProps) {
   const { isLoaded, isSignedIn, userName } = useAppAuth();

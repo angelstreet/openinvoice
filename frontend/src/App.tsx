@@ -11,10 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import QualityPage from './pages/QualityPage';
 import { t } from './i18n';
 import type { Lang } from './i18n';
-
-const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const isTeamsContext = new URLSearchParams(window.location.search).has('team');
-const authConfigured = clerkConfigured || isTeamsContext;
+import { initialSearch, authConfigured } from './bootstrap';
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('fr');
@@ -46,16 +43,16 @@ export default function App() {
           {/* Center: navigation (absolutely centered, won't shift) */}
           {authConfigured && isSignedIn && (
             <nav className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
-              <NavLink to="/" end className={navLinkClass}>
+              <NavLink to={{ pathname: '/', search: initialSearch }} end className={navLinkClass}>
                 {t(lang, 'navExtract')}
               </NavLink>
-              <NavLink to="/history" className={navLinkClass}>
+              <NavLink to={{ pathname: '/history', search: initialSearch }} className={navLinkClass}>
                 {t(lang, 'navHistory')}
               </NavLink>
-              <NavLink to="/dashboard" className={navLinkClass}>
+              <NavLink to={{ pathname: '/dashboard', search: initialSearch }} className={navLinkClass}>
                 {t(lang, 'navDashboard')}
               </NavLink>
-              <NavLink to="/quality" className={navLinkClass}>
+              <NavLink to={{ pathname: '/quality', search: initialSearch }} className={navLinkClass}>
                 {lang === 'fr' ? 'Qualité' : 'Quality'}
               </NavLink>
             </nav>

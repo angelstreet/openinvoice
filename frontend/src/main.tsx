@@ -5,9 +5,9 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import { ClerkAuthProvider, NoAuthProvider, TeamsAuthProvider } from './contexts/AuthContext';
 import App from './App';
 import './index.css';
+import { teamParam } from './bootstrap';
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const teamParam = new URLSearchParams(window.location.search).get('team');
 
 const router = (
   <BrowserRouter>

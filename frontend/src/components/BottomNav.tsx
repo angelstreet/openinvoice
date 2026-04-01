@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppAuth } from '../contexts/AuthContext';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
+import { authConfigured, withSearch } from '../bootstrap';
 
 interface Props {
   lang: Lang;
@@ -11,9 +12,7 @@ export default function BottomNav({ lang }: Props) {
   const { isSignedIn } = useAppAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-  const isTeamsContext = new URLSearchParams(window.location.search).has('team');
-  const showProtected = (clerkConfigured || isTeamsContext) && isSignedIn;
+  const showProtected = authConfigured && isSignedIn;
 
   const items = [
     {
@@ -71,7 +70,7 @@ export default function BottomNav({ lang }: Props) {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => navigate(withSearch(item.path))}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
                 active ? 'text-slate-900' : 'text-slate-400'
               }`}

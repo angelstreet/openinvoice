@@ -2,20 +2,18 @@ import { Navigate } from 'react-router-dom';
 import { useAppAuth } from '../contexts/AuthContext';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
+import { authConfigured } from '../bootstrap';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   lang: Lang;
 }
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const isTeamsContext = new URLSearchParams(window.location.search).has('team');
-
 export default function ProtectedRoute({ children, lang }: ProtectedRouteProps) {
   const { isLoaded, isSignedIn } = useAppAuth();
 
   // If no auth provider is active, redirect to demo page
-  if (!clerkPubKey && !isTeamsContext) {
+  if (!authConfigured) {
     return <Navigate to="/" replace />;
   }
 

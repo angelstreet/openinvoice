@@ -8,6 +8,7 @@ import PipelineInfo from '../components/PipelineInfo';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
 import type { DocumentListItem, ExtractionResult } from '../types';
+import { withSearch } from '../bootstrap';
 
 interface DocumentDetailPageProps {
   lang: Lang;
@@ -113,7 +114,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
         <div className="bg-red-50 border border-red-200 rounded-xl p-6">
           <p className="text-lg font-medium text-red-800">{error || 'Document not found'}</p>
         </div>
-        <button onClick={() => navigate('/history')} className="mt-6 px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+        <button onClick={() => navigate(withSearch('/history'))} className="mt-6 px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
           {t(lang, 'backToHistory')}
         </button>
       </div>
@@ -131,7 +132,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
     <div className="space-y-4">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/history')} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
+        <button onClick={() => navigate(withSearch('/history'))} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
           </svg>
