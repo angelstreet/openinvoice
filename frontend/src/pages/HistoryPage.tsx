@@ -389,7 +389,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                         {doc.corrected_fields && Object.keys(doc.corrected_fields).length > 0 && (
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
                         )}
-                        {doc.filename}
+                        {doc.filename.replace(/\.(pdf|png|jpg|jpeg)$/i, '')}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-600">
