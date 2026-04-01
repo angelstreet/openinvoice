@@ -91,8 +91,8 @@ export default function DashboardPage({ lang }: DashboardPageProps) {
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KpiCard title="Total" value={stats.total_documents} />
         <KpiCard title={t(lang, 'successRate')} value={`${Math.round(stats.success_rate)}%`} />
+        <KpiCard title="Total" value={stats.total_documents} />
         <KpiCard title={lang === 'fr' ? 'Succès' : 'Success'} value={stats.success_count} />
         <KpiCard title={lang === 'fr' ? 'Échec' : 'Fail'} value={stats.error_count} />
       </div>
@@ -195,10 +195,6 @@ export default function DashboardPage({ lang }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* Footer stat */}
-      <div className="text-center text-sm text-slate-500">
-        {stats.unique_suppliers} {t(lang, 'uniqueSuppliers')}
-      </div>
     </div>
   );
 }

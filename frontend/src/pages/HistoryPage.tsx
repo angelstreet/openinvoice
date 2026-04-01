@@ -92,6 +92,12 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [loading, setLoading] = useState(true);
 
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // Inline edit
+  const [editDoc, setEditDoc] = useState<DocumentListItem | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+
   // Filters
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -188,16 +194,57 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
     } catch { /* silently fail */ }
   };
 
-  const handleDelete = async (e: React.MouseEvent, docId: string) => {
-    e.stopPropagation(); // Don't navigate to detail
-    if (!confirm(t(lang, 'confirmDelete'))) return;
+  const handleDeleteClick = (e: React.MouseEvent, docId: string) => {
+    e.stopPropagation();
+    setDeleteTarget(docId);
+  };
+
+  const handleEditClick = (e: React.MouseEvent, doc: DocumentListItem) => {
+    e.stopPropagation();
+    const cf = (doc.corrected_fields || {}) as Record<string, any>;
+    const f = (doc.extracted_fields || {}) as Record<string, any>;
+    setEditValues({
+      supplier: (cf.supplier as string) ?? f.supplier ?? '',
+      invoice_number: (cf.invoice_number as string) ?? f.invoice_number ?? '',
+      total: String((cf.total as number) ?? f.total ?? ''),
+    });
+    setEditDoc(doc);
+  };
+
+  const saveEdit = async () => {
+    if (!editDoc) return;
+    const corrections: Record<string, string | number | null> = {};
+    const f = (editDoc.extracted_fields || {}) as Record<string, any>;
+    if (editValues.supplier !== (f.supplier || '')) corrections.supplier = editValues.supplier || null;
+    if (editValues.invoice_number !== (f.invoice_number || '')) corrections.invoice_number = editValues.invoice_number || null;
+    if (editValues.total !== String(f.total ?? '')) corrections.total = editValues.total ? parseFloat(editValues.total) : null;
+
+    if (Object.keys(corrections).length > 0) {
+      try {
+        const res = await apiFetch(`/api/documents/${editDoc.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ corrected_fields: corrections }),
+        });
+        if (res.ok) {
+          const updated: DocumentListItem = await res.json();
+          setItems(prev => prev.map(d => d.id === updated.id ? updated : d));
+        }
+      } catch { /* silently fail */ }
+    }
+    setEditDoc(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      const res = await apiFetch(`/api/documents/${docId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/documents/${deleteTarget}`, { method: 'DELETE' });
       if (res.ok) {
-        setItems(prev => prev.filter(d => d.id !== docId));
+        setItems(prev => prev.filter(d => d.id !== deleteTarget));
         setTotal(prev => prev - 1);
       }
     } catch { /* silently fail */ }
+    setDeleteTarget(null);
   };
 
   const clearFilters = () => {
@@ -382,7 +429,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                   <tr
                     key={doc.id}
                     onClick={() => navigate(withSearch(`/history/${doc.id}`))}
-                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors group"
                   >
                     <td className="py-3 px-4 text-sm text-slate-800 font-medium truncate max-w-[200px]">
                       <span className="inline-flex items-center gap-1.5">
@@ -416,15 +463,24 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                       <SourceBadge source={doc.source} lang={lang} />
                     </td>
                     <td className="py-3 px-2">
-                      <button
-                        onClick={(e) => handleDelete(e, doc.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                        title={t(lang, 'deleteDocument')}
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                        </svg>
-                      </button>
+                      <div className="flex gap-0.5">
+                        <button
+                          onClick={(e) => handleEditClick(e, doc)}
+                          className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteClick(e, doc.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -458,6 +514,78 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
             >
               Next &rarr;
             </button>
+          </div>
+        </div>
+      )}
+      {/* Edit modal */}
+      {editDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditDoc(null)}>
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-900 mb-4">
+              {editDoc.filename.replace(/\.(pdf|png|jpg|jpeg)$/i, '')}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'supplier')}</label>
+                <input type="text" value={editValues.supplier} onChange={e => setEditValues(v => ({ ...v, supplier: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceNumber')}</label>
+                <input type="text" value={editValues.invoice_number} onChange={e => setEditValues(v => ({ ...v, invoice_number: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'total')}</label>
+                <input type="number" step="0.01" value={editValues.total} onChange={e => setEditValues(v => ({ ...v, total: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setEditDoc(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                {lang === 'fr' ? 'Annuler' : 'Cancel'}
+              </button>
+              <button onClick={saveEdit}
+                className="px-4 py-2 text-sm font-medium text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors">
+                {lang === 'fr' ? 'Enregistrer' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-xl shadow-lg border border-red-200 p-6 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">{t(lang, 'confirmDelete')}</h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {lang === 'fr' ? 'Cette action est irréversible.' : 'This action cannot be undone.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                {lang === 'fr' ? 'Annuler' : 'Cancel'}
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                {t(lang, 'deleteDocument')}
+              </button>
+            </div>
           </div>
         </div>
       )}

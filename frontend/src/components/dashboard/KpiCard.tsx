@@ -6,7 +6,7 @@ interface KpiCardProps {
 
 export default function KpiCard({ title, value, subtitle }: KpiCardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 text-center">
       <p className="text-sm font-medium text-slate-500">{title}</p>
       <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
       {subtitle && (
