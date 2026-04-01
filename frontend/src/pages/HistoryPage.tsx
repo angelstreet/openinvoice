@@ -11,7 +11,7 @@ interface HistoryPageProps {
   lang: Lang;
 }
 
-type SortField = 'filename' | 'uploaded_at' | 'supplier' | 'invoice_number' | 'total' | 'confidence' | 'status';
+type SortField = 'filename' | 'uploaded_at' | 'supplier' | 'invoice_number' | 'total' | 'confidence' | 'status' | 'source';
 type SortDir = 'asc' | 'desc';
 type DatePreset = 'all' | '24h' | 'week' | 'month' | 'year' | 'custom';
 
@@ -422,7 +422,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                   <ThButton field="supplier">{t(lang, 'supplier')}</ThButton>
                   <ThButton field="invoice_number">{t(lang, 'invoiceNumber')}</ThButton>
                   <ThButton field="total">{t(lang, 'total')}</ThButton>
-                  <th className="text-left py-3 px-4 font-medium text-slate-600 text-sm">{t(lang, 'source')}</th>
+                  <ThButton field="source">{t(lang, 'source')}</ThButton>
                   <th className="py-3 px-2 text-left font-medium text-slate-600 text-sm">Actions</th>
                 </tr>
               </thead>

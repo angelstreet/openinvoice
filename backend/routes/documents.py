@@ -122,7 +122,7 @@ def list_documents(
     query = _apply_filters(db.query(Document), db, user_id, search, supplier, date_from, date_to)
 
     # Sorting
-    allowed_sort_fields = {"uploaded_at", "filename", "status", "confidence"}
+    allowed_sort_fields = {"uploaded_at", "filename", "status", "confidence", "source"}
     if sort_by not in allowed_sort_fields:
         sort_by = "uploaded_at"
     sort_column = getattr(Document, sort_by)
