@@ -107,7 +107,6 @@ export default function QualityPage({ lang }: QualityPageProps) {
                 {methodData.map((_e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -146,7 +145,6 @@ export default function QualityPage({ lang }: QualityPageProps) {
                 {feedbackData.map((_e, i) => <Cell key={i} fill={i === 0 ? '#10b981' : i === 1 ? '#f43f5e' : '#94a3b8'} />)}
               </Pie>
               <Tooltip />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </div>
