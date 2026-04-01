@@ -206,24 +206,22 @@ def get_quality_stats(
     recent_disagreements = []
 
     for doc in all_docs:
-        meta = doc.pipeline_meta or {} if hasattr(doc, 'pipeline_meta') else {}
-        method = meta.get("method", "unknown")
-        method_counts[method] += 1
-
-        if doc.confidence is not None:
-            method_confidence[method].append(doc.confidence)
-
-        dur = meta.get("total_duration")
-        if dur is not None:
-            method_durations[method].append(dur)
-
-        # LLM usage
-        inp = meta.get("llm_input_tokens", 0)
-        out = meta.get("llm_output_tokens", 0)
-        if inp > 0 or out > 0:
-            llm_total_input += inp
-            llm_total_output += out
-            llm_doc_count += 1
+        meta = getattr(doc, 'pipeline_meta', None) or {}
+        method = meta.get("method")
+        if method:
+            method_counts[method] += 1
+            if doc.confidence is not None:
+                method_confidence[method].append(doc.confidence)
+            dur = meta.get("total_duration")
+            if dur is not None:
+                method_durations[method].append(dur)
+            # LLM usage
+            inp = meta.get("llm_input_tokens", 0)
+            out = meta.get("llm_output_tokens", 0)
+            if inp > 0 or out > 0:
+                llm_total_input += inp
+                llm_total_output += out
+                llm_doc_count += 1
 
         # Corrections
         cf = getattr(doc, 'corrected_fields', None)
