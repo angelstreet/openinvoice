@@ -93,8 +93,9 @@ function SourceBadge({ source, lang }: { source: string; lang: Lang }) {
   let label: string;
   let cls: string;
   switch (source) {
+    case 'email':
     case 'outlook':
-      label = t(lang, 'sourceOutlook');
+      label = t(lang, 'sourceEmail');
       cls = 'bg-blue-50 text-blue-700';
       break;
     case 'onedrive':

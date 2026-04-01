@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/webhook", tags=["webhook"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_CONTENT_TYPES = {"application/pdf", "image/png", "image/jpeg", "image/jpg"}
-VALID_SOURCES = {"outlook", "onedrive", "sharepoint", "webhook"}
+VALID_SOURCES = {"outlook", "onedrive", "sharepoint", "webhook", "email"}
 
 # Shared job store (imported from main at registration time)
 _jobs: dict[str, dict[str, Any]] = {}
