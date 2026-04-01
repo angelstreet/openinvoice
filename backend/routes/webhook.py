@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import os
 import time
@@ -15,6 +16,7 @@ from fastapi.responses import JSONResponse
 from config import settings
 from db.database import SessionLocal
 from db.models import Document
+from pipeline.ai_feedback import generate_ai_feedback
 from pipeline.extract_fields import extract_fields_from_text
 from pipeline.extract_text import extract_text_from_image, extract_text_from_pdf
 from pipeline.schemas import ExtractionResult, InvoiceFields
@@ -105,9 +107,11 @@ async def _run_webhook_pipeline(
         _add_log(job_id, "text_extraction", "Extracting text...", t0)
         if content_type == "application/pdf":
             raw_text, pages = await asyncio.to_thread(extract_text_from_pdf, file_bytes)
+            text_method = "pdfplumber" if raw_text.strip() else "OCR (tesseract)"
         else:
             raw_text = await asyncio.to_thread(extract_text_from_image, file_bytes)
             pages = 1
+            text_method = "OCR (tesseract)"
 
         if not raw_text.strip():
             _update_doc(document_id, status="success", raw_text="", extracted_fields={}, confidence=0.0, warnings=["no_text_extracted"])
@@ -145,13 +149,22 @@ async def _run_webhook_pipeline(
         if is_duplicate:
             warnings.append("duplicate_invoice")
 
+        # Build pipeline metadata
+        total_dur = round(time.time() - t0, 2)
+        meta_dict = dataclasses.asdict(meta)
+        meta_dict["text_method"] = text_method
+        meta_dict["total_duration"] = total_dur
+
+        # Generate AI assessment
+        ai_fb = generate_ai_feedback(fields, confidence, warnings, meta_dict)
+
         # Save
         result = ExtractionResult(filename=filename, pages=pages, raw_text=raw_text, confidence=confidence, fields=fields, warnings=warnings)
         critical_missing = [w for w in warnings if w in ("missing_supplier", "missing_total")]
         doc_status = "partial" if critical_missing else "success"
-        _update_doc(document_id, status=doc_status, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
+        _update_doc(document_id, status=doc_status, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings, pipeline_meta=meta_dict, ai_feedback=ai_fb)
 
-        total = round(time.time() - t0, 2)
+        total = total_dur
         _add_log(job_id, "done", f"Complete in {total}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)
         job["status"] = "done"
         job["result"] = result.model_dump()

@@ -45,6 +45,39 @@ export interface DocumentListItem {
   warnings: string[];
   user_id: string | null;
   source: string;
+  pipeline_meta: PipelineMeta | null;
+  corrected_fields: Record<string, string | number | null> | null;
+  human_feedback: Feedback | null;
+  ai_feedback: Feedback | null;
+}
+
+export interface PipelineStep {
+  name: string;
+  duration: number;
+  fields_found?: number;
+  templates_checked?: number;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  success?: boolean;
+}
+
+export interface PipelineMeta {
+  method: string;
+  text_method?: string;
+  llm_model: string;
+  llm_input_tokens: number;
+  llm_output_tokens: number;
+  templates_checked: number;
+  steps: PipelineStep[];
+  total_duration?: number;
+}
+
+export interface Feedback {
+  verdict: 'OK' | 'NOK';
+  comment: string;
+  generated_at?: string;
+  submitted_at?: string;
 }
 
 export interface DocumentListResponse {

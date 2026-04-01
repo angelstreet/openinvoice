@@ -37,3 +37,7 @@ class Document(Base):
     original_file_path = Column(String, nullable=True)
     source = Column(String(20), default="upload")  # upload, outlook, onedrive, sharepoint, webhook
     source_metadata = Column(JSON, nullable=True)   # sender_email, subject, folder_path, etc.
+    pipeline_meta = Column(JSON, nullable=True)      # method, steps, durations, tokens
+    corrected_fields = Column(JSON, nullable=True)   # user-edited field overrides
+    human_feedback = Column(JSON, nullable=True)     # {verdict, comment, submitted_at}
+    ai_feedback = Column(JSON, nullable=True)        # {verdict, comment, generated_at}

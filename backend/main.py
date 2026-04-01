@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ from db.models import Document
 from pipeline.extract_fields import extract_fields_from_text, _templates
 from pipeline.extract_text import extract_text_from_image, extract_text_from_pdf
 from pipeline.schemas import ExtractionResult, InvoiceFields
+from pipeline.ai_feedback import generate_ai_feedback
 from pipeline.validate import validate_fields
 from routes.dashboard import router as dashboard_router
 from routes.documents import router as documents_router
@@ -239,7 +241,15 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
         if is_duplicate:
             warnings.append("duplicate_invoice")
 
-        _update_document_on_success(document_id, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings)
+        # Build pipeline metadata
+        meta_dict = dataclasses.asdict(meta)
+        meta_dict["text_method"] = method  # pdfplumber or OCR (tesseract)
+        meta_dict["total_duration"] = total_time
+
+        # Generate AI assessment
+        ai_fb = generate_ai_feedback(fields, confidence, warnings, meta_dict)
+
+        _update_document_on_success(document_id, raw_text=raw_text, extracted_fields=fields.model_dump(), confidence=confidence, warnings=warnings, pipeline_meta=meta_dict, ai_feedback=ai_fb)
 
         _add_log(job_id, "done", f"Processing complete in {total_time}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)
         job["status"] = "done"
@@ -328,7 +338,7 @@ def _update_document_status(document_id: str | None, status: str):
         logger.error("DB session error: %s", e)
 
 
-def _update_document_on_success(document_id: str | None, raw_text: str, extracted_fields: dict, confidence: float, warnings: list[str]):
+def _update_document_on_success(document_id: str | None, raw_text: str, extracted_fields: dict, confidence: float, warnings: list[str], pipeline_meta: dict | None = None, ai_feedback: dict | None = None):
     if not document_id:
         return
     try:
@@ -340,6 +350,10 @@ def _update_document_on_success(document_id: str | None, raw_text: str, extracte
                 doc.extracted_fields = extracted_fields
                 doc.confidence = confidence
                 doc.warnings = warnings
+                if pipeline_meta is not None:
+                    doc.pipeline_meta = pipeline_meta
+                if ai_feedback is not None:
+                    doc.ai_feedback = ai_feedback
                 # Mark as partial if critical fields are missing
                 critical_missing = [w for w in warnings if w in ("missing_supplier", "missing_total")]
                 doc.status = "partial" if critical_missing else "success"

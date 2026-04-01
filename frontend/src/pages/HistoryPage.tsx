@@ -423,7 +423,12 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     <td className="py-3 px-4 text-sm text-slate-800 font-medium truncate max-w-[200px]">
-                      {doc.filename}
+                      <span className="inline-flex items-center gap-1.5">
+                        {doc.corrected_fields && Object.keys(doc.corrected_fields).length > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                        )}
+                        {doc.filename}
+                      </span>
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-600">
                       {formatDate(doc.uploaded_at, lang)}
@@ -441,7 +446,15 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                       <ConfidenceBadge score={doc.confidence} />
                     </td>
                     <td className="py-3 px-4">
-                      <StatusBadge status={doc.status} lang={lang} />
+                      <span className="inline-flex items-center gap-1.5">
+                        <StatusBadge status={doc.status} lang={lang} />
+                        {doc.human_feedback?.verdict === 'OK' && (
+                          <svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>
+                        )}
+                        {doc.human_feedback?.verdict === 'NOK' && (
+                          <svg className="w-3.5 h-3.5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
+                        )}
+                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <SourceBadge source={doc.source} lang={lang} />

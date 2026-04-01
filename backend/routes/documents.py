@@ -45,6 +45,10 @@ def _doc_to_dict(doc: Document) -> dict:
         "user_id": doc.user_id,
         "original_file_path": doc.original_file_path,
         "source": getattr(doc, "source", None) or "upload",
+        "pipeline_meta": getattr(doc, "pipeline_meta", None),
+        "corrected_fields": getattr(doc, "corrected_fields", None),
+        "human_feedback": getattr(doc, "human_feedback", None),
+        "ai_feedback": getattr(doc, "ai_feedback", None),
     }
 
 
@@ -217,6 +221,35 @@ def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
     if user_id is not None and doc.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    return _doc_to_dict(doc)
+
+
+@router.patch("/documents/{doc_id}")
+def update_document(
+    doc_id: str,
+    body: dict,
+    user_id: str | None = Depends(get_required_user),
+    db: Session = Depends(get_db),
+):
+    """Update corrected fields and/or human feedback."""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if user_id is not None and doc.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if "corrected_fields" in body:
+        existing = doc.corrected_fields or {}
+        existing.update(body["corrected_fields"])
+        doc.corrected_fields = existing
+
+    if "human_feedback" in body:
+        fb = body["human_feedback"]
+        fb["submitted_at"] = datetime.now(timezone.utc).isoformat()
+        doc.human_feedback = fb
+
+    db.commit()
+    db.refresh(doc)
     return _doc_to_dict(doc)
 
 

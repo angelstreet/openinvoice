@@ -97,103 +97,117 @@ export function TeamsAuthProvider({ team, children }: { team: string; children: 
     return appTokenRef.current;
   };
 
-  useEffect(() => {
-    let cancelled = false;
+  // Full Teams auth flow — used on mount and when resuming from background
+  const authenticate = async (cancelled: () => boolean) => {
+    try {
+      // Check sessionStorage for cached token
+      const cached = sessionStorage.getItem('oi_teams_auth');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.expiry > Date.now()) {
+            appTokenRef.current = parsed.token;
+            expiryRef.current = parsed.expiry;
 
-    async function init() {
-      try {
-        // Check sessionStorage for cached token
-        const cached = sessionStorage.getItem('oi_teams_auth');
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (parsed.expiry > Date.now()) {
-              appTokenRef.current = parsed.token;
-              expiryRef.current = parsed.expiry;
+            const tokenGetter = buildTokenGetter(team);
+            setTokenGetter(tokenGetter);
 
-              const tokenGetter = buildTokenGetter(team);
-              setTokenGetter(tokenGetter);
-
-              if (!cancelled) {
-                setState({
-                  isLoaded: true,
-                  isSignedIn: true,
-                  userId: parsed.userId,
-                  userName: parsed.userName,
-                  getToken: tokenGetter,
-                });
-              }
-              return; // cached token still valid
+            if (!cancelled()) {
+              setState({
+                isLoaded: true,
+                isSignedIn: true,
+                userId: parsed.userId,
+                userName: parsed.userName,
+                getToken: tokenGetter,
+              });
             }
-          } catch { /* ignore bad cache */ }
-        }
+            return; // cached token still valid
+          }
+        } catch { /* ignore bad cache */ }
+      }
 
-        // Initialize Teams SDK
-        await teamsApp.initialize();
-        const context = await teamsApp.getContext();
+      // Initialize Teams SDK
+      await teamsApp.initialize();
+      const context = await teamsApp.getContext();
 
-        const userId = context.user?.id;
-        if (!userId) throw new Error('No user ID in Teams context');
+      const userId = context.user?.id;
+      if (!userId) throw new Error('No user ID in Teams context');
 
-        const displayName = context.user?.displayName ?? '';
-        const upn = context.user?.userPrincipalName ?? '';
-        const tenantId = context.user?.tenant?.id ?? '';
+      const displayName = context.user?.displayName ?? '';
+      const upn = context.user?.userPrincipalName ?? '';
+      const tenantId = context.user?.tenant?.id ?? '';
 
-        // Exchange context for app token
-        const res = await fetch('/api/auth/teams-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: userId,
-            display_name: displayName,
-            upn: upn,
-            tenant_id: tenantId,
-            team,
-          }),
-        });
+      // Exchange context for app token
+      const res = await fetch('/api/auth/teams-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          display_name: displayName,
+          upn: upn,
+          tenant_id: tenantId,
+          team,
+        }),
+      });
 
-        if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
-        const data = await res.json();
+      if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+      const data = await res.json();
 
-        appTokenRef.current = data.token;
-        expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000; // refresh 30 min before 8h expiry
+      appTokenRef.current = data.token;
+      expiryRef.current = Date.now() + 7.5 * 60 * 60 * 1000; // refresh 30 min before 8h expiry
 
-        // Cache in sessionStorage
-        sessionStorage.setItem('oi_teams_auth', JSON.stringify({
-          token: data.token,
-          expiry: expiryRef.current,
+      // Cache in sessionStorage
+      sessionStorage.setItem('oi_teams_auth', JSON.stringify({
+        token: data.token,
+        expiry: expiryRef.current,
+        userId: data.user_id,
+        userName: data.name,
+      }));
+
+      const tokenGetter = buildTokenGetter(team);
+      setTokenGetter(tokenGetter);
+
+      if (!cancelled()) {
+        setState({
+          isLoaded: true,
+          isSignedIn: true,
           userId: data.user_id,
           userName: data.name,
-        }));
-
-        const tokenGetter = buildTokenGetter(team);
-        setTokenGetter(tokenGetter);
-
-        if (!cancelled) {
-          setState({
-            isLoaded: true,
-            isSignedIn: true,
-            userId: data.user_id,
-            userName: data.name,
-            getToken: tokenGetter,
-          });
-        }
-      } catch (err) {
-        console.error('Teams auth failed:', err);
-        if (!cancelled) {
-          setState({
-            isLoaded: true,
-            isSignedIn: false,
-            userId: null,
-            userName: null,
-            getToken: async () => null,
-          });
-        }
+          getToken: tokenGetter,
+        });
+      }
+    } catch (err) {
+      console.error('Teams auth failed:', err);
+      if (!cancelled()) {
+        setState({
+          isLoaded: true,
+          isSignedIn: false,
+          userId: null,
+          userName: null,
+          getToken: async () => null,
+        });
       }
     }
+  };
 
-    init();
+  // Initial auth on mount
+  useEffect(() => {
+    let cancelled = false;
+    authenticate(() => cancelled);
     return () => { cancelled = true; };
+  }, [team]);
+
+  // Re-authenticate when tab becomes visible again (Teams can clear sessionStorage on idle)
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Token still valid in memory — nothing to do
+      if (appTokenRef.current && Date.now() < expiryRef.current) return;
+      // Lost token or expired — re-auth silently
+      authenticate(() => false);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [team]);
 
   return (
