@@ -104,7 +104,6 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   const [customTo, setCustomTo] = useState('');
   const [supplier, setSupplier] = useState('');
   const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
 
   // Load supplier list
   useEffect(() => {
@@ -281,17 +280,11 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Search + Filter toggle + Export */}
-      <div className="flex flex-col sm:flex-row gap-2">
+    <div className="space-y-3">
+      {/* Row 1: Search + CSV */}
+      <div className="flex gap-2">
         <div className="relative flex-1">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
           <input
@@ -299,108 +292,74 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder={t(lang, 'searchPlaceholder')}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowFilters(f => !f)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-              hasActiveFilters
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <svg className="inline-block w-4 h-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
-            </svg>
-            {t(lang, 'filters')}{hasActiveFilters ? ' *' : ''}
-          </button>
-          <button
-            onClick={handleExportCsv}
-            className="px-4 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
-          >
-            <svg className="inline-block w-4 h-4 mr-1.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            {t(lang, 'exportCsv')}
-          </button>
-        </div>
+        <button
+          onClick={handleExportCsv}
+          className="px-3 py-2 text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          title={t(lang, 'exportCsv')}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+        </button>
       </div>
 
-      {/* Filter panel */}
-      {showFilters && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-          {/* Date presets */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-2">{t(lang, 'dateRange')}</label>
-            <div className="flex flex-wrap gap-1.5">
-              {presetButtons.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => { setDatePreset(key); setPage(1); }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
-                    datePreset === key
-                      ? 'bg-slate-800 text-white border-slate-800'
-                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Row 2: Period + Supplier + Clear */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <select
+          value={datePreset}
+          onChange={e => { setDatePreset(e.target.value as DatePreset); setPage(1); }}
+          className="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {presetButtons.map(({ key, label }) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
 
-          {/* Custom date inputs */}
-          {datePreset === 'custom' && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'from')}</label>
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={e => { setCustomFrom(e.target.value); setPage(1); }}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'to')}</label>
-                <input
-                  type="date"
-                  value={customTo}
-                  onChange={e => { setCustomTo(e.target.value); setPage(1); }}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          )}
+        <select
+          value={supplier}
+          onChange={e => { setSupplier(e.target.value); setPage(1); }}
+          className="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">{t(lang, 'allSuppliers')}</option>
+          {suppliers.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
 
-          {/* Supplier filter */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'supplierFilter')}</label>
-            <select
-              value={supplier}
-              onChange={e => { setSupplier(e.target.value); setPage(1); }}
-              className="w-full sm:w-64 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">{t(lang, 'allSuppliers')}</option>
-              {suppliers.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
+        {/* Custom date range — inline when selected */}
+        {datePreset === 'custom' && (
+          <>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={e => { setCustomFrom(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-slate-400 text-sm">—</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={e => { setCustomTo(e.target.value); setPage(1); }}
+              className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </>
+        )}
 
-          {/* Clear filters */}
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-              {t(lang, 'clear')}
-            </button>
-          )}
-        </div>
-      )}
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="px-2 py-2 text-slate-400 hover:text-slate-600 transition-colors"
+            title={t(lang, 'clear')}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
