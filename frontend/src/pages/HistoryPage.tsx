@@ -206,6 +206,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
     setEditValues({
       supplier: (cf.supplier as string) ?? f.supplier ?? '',
       invoice_number: (cf.invoice_number as string) ?? f.invoice_number ?? '',
+      invoice_date: (cf.invoice_date as string) ?? f.invoice_date ?? '',
       total: String((cf.total as number) ?? f.total ?? ''),
     });
     setEditDoc(doc);
@@ -217,6 +218,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
     const f = (editDoc.extracted_fields || {}) as Record<string, any>;
     if (editValues.supplier !== (f.supplier || '')) corrections.supplier = editValues.supplier || null;
     if (editValues.invoice_number !== (f.invoice_number || '')) corrections.invoice_number = editValues.invoice_number || null;
+    if (editValues.invoice_date !== (f.invoice_date || '')) corrections.invoice_date = editValues.invoice_date || null;
     if (editValues.total !== String(f.total ?? '')) corrections.total = editValues.total ? parseFloat(editValues.total) : null;
 
     if (Object.keys(corrections).length > 0) {
@@ -421,7 +423,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                   <ThButton field="invoice_number">{t(lang, 'invoiceNumber')}</ThButton>
                   <ThButton field="total">{t(lang, 'total')}</ThButton>
                   <th className="text-left py-3 px-4 font-medium text-slate-600 text-sm">{t(lang, 'source')}</th>
-                  <th className="py-3 px-2 w-10"></th>
+                  <th className="py-3 px-2 text-left font-medium text-slate-600 text-sm">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -533,6 +535,11 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceNumber')}</label>
                 <input type="text" value={editValues.invoice_number} onChange={e => setEditValues(v => ({ ...v, invoice_number: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{t(lang, 'invoiceDate')}</label>
+                <input type="date" value={editValues.invoice_date} onChange={e => setEditValues(v => ({ ...v, invoice_date: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
