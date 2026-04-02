@@ -118,6 +118,9 @@ export default function ExtractedFields({ result, lang, correctedFields, onField
           <EditableFieldRow label={t(lang, 'invoiceDate')} value={fields.invoice_date} fieldKey="invoice_date" corrected={cf.invoice_date} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow label={t(lang, 'dueDate')} value={fields.due_date} fieldKey="due_date" corrected={cf.due_date} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow label={t(lang, 'currency')} value={fields.currency} fieldKey="currency" corrected={cf.currency} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
+          <EditableFieldRow label={t(lang, 'siret')} value={fields.siret} fieldKey="siret" corrected={cf.siret} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
+          <EditableFieldRow label={t(lang, 'vatNumber')} value={fields.vat_number} fieldKey="vat_number" corrected={cf.vat_number} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
+          <EditableFieldRow label={t(lang, 'clientNumber')} value={fields.client_number} fieldKey="client_number" corrected={cf.client_number} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow
             label={t(lang, 'subtotal')}
             value={formatAmount(fields.subtotal, fields.currency, noValue)}

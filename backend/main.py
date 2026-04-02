@@ -141,6 +141,9 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
         step_dur = round(time.time() - step_start, 2)
         text_len = len(raw_text)
         _add_log(job_id, "text_extraction", f"✓ {method} — {text_len} chars, {pages} page(s) [{step_dur}s]", t0)
+        if raw_text.strip():
+            preview = raw_text[:200].replace("\n", " ").strip()
+            _add_log(job_id, "text_extraction", f"Preview: {preview}{'...' if text_len > 200 else ''}", t0)
 
         if not raw_text.strip():
             result = ExtractionResult(
@@ -253,7 +256,9 @@ async def _run_pipeline(job_id: str, file_bytes: bytes, filename: str, content_t
 
         _add_log(job_id, "done", f"Processing complete in {total_time}s" + (" [DUPLICATE]" if is_duplicate else ""), t0)
         job["status"] = "done"
-        job["result"] = result.model_dump()
+        job_result = result.model_dump()
+        job_result["pipeline_meta"] = meta_dict
+        job["result"] = job_result
         job["document_id"] = document_id
 
     except Exception as e:

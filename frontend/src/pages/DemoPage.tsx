@@ -3,10 +3,11 @@ import UploadZone from '../components/UploadZone';
 import DocumentPreview from '../components/DocumentPreview';
 import ExtractedFields from '../components/ExtractedFields';
 import ProcessingLog from '../components/ProcessingLog';
+import PipelineInfo from '../components/PipelineInfo';
 import { apiFetch } from '../lib/api';
 import { t } from '../i18n';
 import type { Lang } from '../i18n';
-import type { ExtractionResult, LogEntry } from '../types';
+import type { ExtractionResult, LogEntry, PipelineMeta } from '../types';
 
 type PageState = 'idle' | 'loading' | 'done' | 'error';
 
@@ -19,6 +20,9 @@ export default function DemoPage({ lang }: DemoPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [pipelineMeta, setPipelineMeta] = useState<PipelineMeta | null>(null);
+  const [activeTab, setActiveTab] = useState<'fields' | 'pipeline' | 'ocr'>('fields');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -84,6 +88,8 @@ export default function DemoPage({ lang }: DemoPageProps) {
             stopPolling();
             stopTimer();
             setResult(data.result as ExtractionResult);
+            setDocumentId(data.document_id || null);
+            setPipelineMeta(data.result?.pipeline_meta || null);
             setState('done');
             // Clean up job on server
             apiFetch(`/api/extract/${job_id}`, { method: 'DELETE' }).catch(() => {});
@@ -147,7 +153,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
               {t(lang, 'processing')} <span className="font-semibold">{file?.name}</span>
             </p>
           </div>
-          <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} />
+          <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} rawText={result?.raw_text} />
         </div>
       )}
 
@@ -155,7 +161,7 @@ export default function DemoPage({ lang }: DemoPageProps) {
       {state === 'error' && (
         <div className="space-y-6">
           {logs.length > 0 && (
-            <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} />
+            <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} rawText={result?.raw_text} />
           )}
           <div className="max-w-2xl mx-auto">
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -196,16 +202,57 @@ export default function DemoPage({ lang }: DemoPageProps) {
               <span>{t(lang, 'processingLog')} ({elapsed.toFixed(1)}s)</span>
             </summary>
             <div className="mt-3">
-              <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} />
+              <ProcessingLog logs={logs} elapsed={elapsed} lang={lang} rawText={result?.raw_text} />
             </div>
           </details>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <div className="hidden lg:block lg:col-span-2">
-              <DocumentPreview file={file} lang={lang} />
+              <DocumentPreview file={file} lang={lang} documentId={documentId || undefined} />
             </div>
-            <div className="lg:col-span-3">
-              <ExtractedFields result={result} lang={lang} />
+            <div className="lg:col-span-3 space-y-4">
+              {/* LLM token badge */}
+              {pipelineMeta && (
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    pipelineMeta.llm_input_tokens ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    LLM: {pipelineMeta.llm_input_tokens ? `${pipelineMeta.llm_input_tokens.toLocaleString()} + ${pipelineMeta.llm_output_tokens.toLocaleString()} tokens` : '0 tokens'}
+                  </span>
+                </div>
+              )}
+
+              {/* Tabs */}
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                {(['fields', 'pipeline', 'ocr'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      activeTab === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {t(lang, tab === 'fields' ? 'fieldsTab' : tab === 'pipeline' ? 'pipelineTab' : 'ocrTextTab')}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'fields' && <ExtractedFields result={result} lang={lang} />}
+
+              {activeTab === 'pipeline' && pipelineMeta && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                  <PipelineInfo meta={pipelineMeta} lang={lang} />
+                </div>
+              )}
+
+              {activeTab === 'ocr' && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">{t(lang, 'ocrTextTab')}</h3>
+                  <pre className="text-xs text-slate-600 bg-slate-50 rounded-lg p-4 overflow-auto max-h-[500px] whitespace-pre-wrap font-mono">
+                    {result.raw_text || t(lang, 'noData')}
+                  </pre>
+                </div>
+              )}
             </div>
           </div>
 

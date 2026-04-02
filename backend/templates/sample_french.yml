@@ -1,0 +1,13 @@
+issuer: French Invoice Template
+keywords:
+  - Facture
+fields:
+  amount: (?:TTC\s+|€)([\d.,]+)
+  invoice_number: (?:FACTURE|Facture)\s*(?:NO|No|N°|n°)\s*[:\s]?\s*(\d[\w\-/]*)
+  date: Date\s*de\s*[Ff]acture\s*:\s*(\d{1,2}[\.\-/]\w{2,4}[\.\-/]\d{2,4})
+  due_date: (?:Date\s*d'échéance|[Éé]ch[ée]ance|Zahlbar\s*bis)[\s:]+(\d{1,2}[\.\-/]\d{1,2}[\.\-/]\d{2,4})
+  issuer: ^([A-ZÀ-Ü][A-Za-zÀ-ü\s,.\-&']{3,})\s*$
+options:
+  currency: EUR
+  decimal_separator: ","
+  remove_whitespace: false

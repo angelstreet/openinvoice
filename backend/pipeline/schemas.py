@@ -20,6 +20,9 @@ class InvoiceFields(BaseModel):
     subtotal: float | None = None
     tax: float | None = None
     total: float | None = None
+    siret: str | None = None
+    vat_number: str | None = None
+    client_number: str | None = None
     line_items: list[LineItem] = Field(default_factory=list)
 
 

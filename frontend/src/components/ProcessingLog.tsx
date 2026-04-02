@@ -23,9 +23,18 @@ interface Props {
   logs: LogEntry[];
   elapsed: number;
   lang: Lang;
+  rawText?: string;
 }
 
-export default function ProcessingLog({ logs, elapsed, lang }: Props) {
+function openTextInNewTab(text: string) {
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(`<html><head><title>Extracted Text</title><style>body{font-family:monospace;white-space:pre-wrap;padding:2rem;max-width:900px;margin:0 auto;line-height:1.5;color:#334155;}</style></head><body>${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</body></html>`);
+    w.document.close();
+  }
+}
+
+export default function ProcessingLog({ logs, elapsed, lang, rawText }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,6 +76,17 @@ export default function ProcessingLog({ logs, elapsed, lang }: Props) {
                 {/* Message */}
                 <span className={`flex-1 truncate ${log.step === 'done' ? 'text-emerald-700 font-medium' : 'text-slate-600'}`}>
                   {cleanMsg}
+                  {log.message.startsWith('Preview:') && rawText && (
+                    <button
+                      onClick={() => openTextInNewTab(rawText)}
+                      className="ml-2 inline-flex items-center text-blue-500 hover:text-blue-700 text-xs"
+                      title={lang === 'fr' ? 'Voir le texte complet' : 'View full text'}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                    </button>
+                  )}
                 </span>
                 {/* Status icon */}
                 <span className="w-5 shrink-0 text-center">

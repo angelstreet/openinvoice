@@ -139,23 +139,16 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
           {t(lang, 'backToHistory')}
         </button>
         <div className="flex items-center gap-3">
-          {/* AI verdict badge */}
-          {aiVerdict && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-              aiVerdict === 'OK' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              {t(lang, 'aiVerdict')}: {aiVerdict}
+          {/* LLM cost badge — only show if LLM was used */}
+          {doc.pipeline_meta?.llm_input_tokens ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+              LLM: {doc.pipeline_meta.llm_input_tokens.toLocaleString()} + {doc.pipeline_meta.llm_output_tokens.toLocaleString()} tokens
             </span>
-          )}
-          {/* Advanced toggle */}
-          <button
-            onClick={() => setShowAdvanced(a => !a)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-              showAdvanced ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            {t(lang, 'advanced')}
-          </button>
+          ) : doc.pipeline_meta?.method ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+              LLM: 0 tokens
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -163,7 +156,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
         {/* Document preview */}
         <div className="lg:col-span-2">
           {fileUrl ? (
-            <DocumentPreview fileUrl={fileUrl} filename={doc.filename} contentType={doc.content_type} lang={lang} />
+            <DocumentPreview fileUrl={fileUrl} filename={doc.filename} contentType={doc.content_type} lang={lang} documentId={id} />
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center text-slate-500 text-sm">
               {t(lang, 'noData')}
@@ -173,8 +166,8 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
 
         {/* Right panel */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Tabs (only in advanced mode) */}
-          {showAdvanced && (
+          {/* Tabs — always visible on partial/error, otherwise only in advanced mode */}
+          { (
             <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
               {(['fields', 'pipeline', 'ocr'] as Tab[]).map(tab => (
                 <button
@@ -191,7 +184,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
           )}
 
           {/* Tab content */}
-          {(!showAdvanced || activeTab === 'fields') && extractionResult && (
+          {activeTab === 'fields' && extractionResult && (
             <ExtractedFields
               result={extractionResult}
               lang={lang}
@@ -201,7 +194,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
             />
           )}
 
-          {showAdvanced && activeTab === 'pipeline' && doc.pipeline_meta && (
+          { activeTab === 'pipeline' && doc.pipeline_meta && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">{t(lang, 'pipelineTab')}</h3>
               <PipelineInfo meta={doc.pipeline_meta} lang={lang} />
@@ -215,7 +208,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
             </div>
           )}
 
-          {showAdvanced && activeTab === 'ocr' && (
+          { activeTab === 'ocr' && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">{t(lang, 'ocrTextTab')}</h3>
               <pre className="text-xs text-slate-600 bg-slate-50 rounded-lg p-4 overflow-auto max-h-[500px] whitespace-pre-wrap font-mono">
@@ -232,7 +225,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 humanVerdict === 'OK'
                   ? 'bg-green-500 text-white border-green-500'
-                  : 'bg-white text-green-600 border-green-300 hover:bg-green-50'
+                  : 'bg-transparent text-green-600 border-green-300 hover:bg-green-500/10'
               }`}
             >
               {t(lang, 'feedbackOk')}
@@ -242,7 +235,7 @@ export default function DocumentDetailPage({ lang }: DocumentDetailPageProps) {
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 humanVerdict === 'NOK'
                   ? 'bg-red-500 text-white border-red-500'
-                  : 'bg-white text-red-600 border-red-300 hover:bg-red-50'
+                  : 'bg-transparent text-red-600 border-red-300 hover:bg-red-500/10'
               }`}
             >
               {t(lang, 'feedbackNok')}

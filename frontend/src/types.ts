@@ -15,6 +15,9 @@ export interface ExtractedFields {
   subtotal: number | null;
   tax: number | null;
   total: number | null;
+  siret: string | null;
+  vat_number: string | null;
+  client_number: string | null;
   line_items: LineItem[];
 }
 

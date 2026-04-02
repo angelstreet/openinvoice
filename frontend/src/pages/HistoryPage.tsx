@@ -384,7 +384,7 @@ export default function HistoryPage({ lang }: HistoryPageProps) {
                     <td className="py-1.5 px-3 text-sm text-slate-600">
                       {formatDate(doc.uploaded_at, lang)}
                     </td>
-                    <td className="py-1.5 px-3 text-sm text-slate-600">
+                    <td className="py-1.5 px-3 text-sm text-slate-600 truncate max-w-[200px]" title={doc.extracted_fields?.supplier || ''}>
                       {doc.extracted_fields?.supplier || '—'}
                     </td>
                     <td className="py-1.5 px-3 text-sm text-slate-600">

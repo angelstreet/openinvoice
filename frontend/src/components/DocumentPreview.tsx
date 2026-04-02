@@ -11,6 +11,7 @@ interface DocumentPreviewProps {
   fileUrl?: string;
   filename?: string;
   contentType?: string;
+  documentId?: string;
 }
 
 function PdfCanvas({ file, fileUrl }: { file?: File; fileUrl?: string }) {
@@ -112,7 +113,7 @@ function PdfCanvas({ file, fileUrl }: { file?: File; fileUrl?: string }) {
   );
 }
 
-export default function DocumentPreview({ file, fileUrl, filename, contentType, lang }: DocumentPreviewProps) {
+export default function DocumentPreview({ file, fileUrl, filename, contentType, lang, documentId }: DocumentPreviewProps) {
   const displayName = file?.name ?? filename ?? 'Document';
   const sizeKb = file ? `${(file.size / 1024).toFixed(0)} KB` : null;
 
@@ -133,9 +134,23 @@ export default function DocumentPreview({ file, fileUrl, filename, contentType, 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
       <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <h3 className="text-sm font-medium text-slate-700 truncate">
-          {displayName}
-        </h3>
+        {(fileUrl || file) ? (
+          <a
+            href={fileUrl || (file ? URL.createObjectURL(file) : '#')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-1.5 min-w-0"
+          >
+            <h3 className="text-sm font-medium text-slate-700 truncate group-hover:text-blue-600 transition-colors">
+              {displayName}
+            </h3>
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-slate-400 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>
+        ) : (
+          <h3 className="text-sm font-medium text-slate-700 truncate">{displayName}</h3>
+        )}
         {sizeKb && (
           <p className="text-xs text-slate-500 mt-0.5">{sizeKb}</p>
         )}

@@ -21,7 +21,10 @@ from .schemas import InvoiceFields, LineItem
 logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-_templates = read_templates(str(TEMPLATES_DIR)) if TEMPLATES_DIR.exists() else []
+# Load built-in templates (189 vendor-specific) + custom ones
+_builtin_templates = read_templates()
+_custom_templates = read_templates(str(TEMPLATES_DIR)) if TEMPLATES_DIR.exists() else []
+_templates = _custom_templates + _builtin_templates
 
 # Minimum fields needed to skip LLM
 REQUIRED_FIELDS = {"supplier", "invoice_number", "total"}
@@ -37,9 +40,18 @@ class ExtractionMeta:
     steps: list[dict] = field(default_factory=list)
 
 
+def _has_required(fields: InvoiceFields | None) -> bool:
+    """Check if all required fields are present."""
+    if not fields:
+        return False
+    return all(getattr(fields, f, None) not in (None, "") for f in REQUIRED_FIELDS)
+
+
 def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) -> tuple[InvoiceFields, float, ExtractionMeta]:
-    """Extract fields using: 1) custom regex on pdfplumber text, 2) invoice2data on PDF,
-    merge best of both, 3) LLM fallback only if critical fields missing.
+    """Extract fields using cascading fallbacks:
+    1) regex — fast, no cost
+    2) invoice2data — only if regex missed required fields
+    3) LLM — only if both above missed required fields
 
     Returns (fields, confidence, meta).
     """
@@ -52,27 +64,30 @@ def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) ->
     regex_found = _count_fields(regex_fields)
     meta.steps.append({"name": "regex", "duration": regex_dur, "fields_found": regex_found})
 
-    # --- Layer 2: invoice2data on PDF file ---
+    # If regex got all required fields, skip invoice2data and LLM
+    if _has_required(regex_fields):
+        meta.method = "regex"
+        confidence = min(0.95, 0.50 + regex_found * 0.075)
+        return regex_fields, confidence, meta
+
+    # --- Layer 2: invoice2data fallback ---
     t1 = time.time()
     i2d_fields, _ = _try_invoice2data(file_bytes, filename)
     i2d_dur = round(time.time() - t1, 4)
     i2d_found = _count_fields(i2d_fields) if i2d_fields else 0
     meta.steps.append({"name": "invoice2data", "duration": i2d_dur, "fields_found": i2d_found, "templates_checked": meta.templates_checked})
 
-    # --- Merge: pick best value per field ---
+    # Merge regex + invoice2data
     merged = _merge_fields(regex_fields, i2d_fields)
     merged_found = _count_fields(merged)
-    has_required = all(getattr(merged, f, None) not in (None, "") for f in REQUIRED_FIELDS)
 
-    if has_required:
-        # Determine which sources contributed
+    if _has_required(merged):
         sources = []
         if regex_found > 0:
             sources.append("regex")
         if i2d_found > 0:
             sources.append("invoice2data")
         meta.method = "+".join(sources) or "regex"
-        # 6+ fields from regex/invoice2data = high confidence
         confidence = min(0.95, 0.50 + merged_found * 0.075)
         return merged, confidence, meta
 
@@ -91,7 +106,6 @@ def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) ->
     })
 
     if llm_confidence > 0:
-        # Merge LLM results with what we already had (LLM fills gaps)
         final = _merge_fields(merged, llm_fields)
         meta.method = "llm"
         return final, llm_confidence, meta
@@ -109,8 +123,10 @@ _CURRENCY_SYMBOLS = {"$": "USD", "€": "EUR", "£": "GBP", "CHF": "CHF"}
 
 _PATTERNS = {
     "supplier": [
-        re.compile(r"^(.+?)\s+INVOICE", re.IGNORECASE | re.MULTILINE),
-        re.compile(r"^(.+?)\s+(?:Rechnung|Facture)", re.IGNORECASE | re.MULTILINE),
+        re.compile(r"^([A-ZÀ-Ü][A-Za-zÀ-ü ,.\-&']+?)\s+INVOICE", re.MULTILINE),
+        re.compile(r"^([A-ZÀ-Ü][A-Za-zÀ-ü ,.\-&']+?)\s+(?:Rechnung|Facture)\b", re.MULTILINE),
+        # French invoices: first all-caps line (3+ words) is usually the supplier
+        re.compile(r"^([A-ZÀ-Ü][A-ZÀ-Ü\s\-&.]{4,})$", re.MULTILINE),
     ],
     "client": [
         # "Bill To: Ship To:\nShip Mode: ...\nAaron Hawkins ..." — skip Ship To + Ship Mode lines
@@ -119,10 +135,12 @@ _PATTERNS = {
         re.compile(r"(?:Bill\s*To|Destinataire|Facturé\s*à|Kunde|Client)\s*:\s+([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)+)"),
     ],
     "invoice_number": [
-        re.compile(r"(?:Invoice|Rechnung|Facture)\s*(?:No|Number|Nr)?\.?\s*[:#]?\s*(\w[\w\-/]+)", re.IGNORECASE),
+        re.compile(r"Facture\s*n°\s*:?\s*(\d[\w\-/]*)", re.IGNORECASE),
+        re.compile(r"(?:Invoice|Facture|Rechnung)\s*(?:No|Number|Nr)?\.?\s*[:#]?\s*(\d[\w\-/]+)", re.IGNORECASE),
         re.compile(r"#\s*(\d+)"),
     ],
     "invoice_date": [
+        re.compile(r"Date\s*de\s*[Ff]acture\s*:\s*(\d{1,2}[\.\-/][A-Za-z0-9]{2,3}[\.\-/]\d{2,4})", re.IGNORECASE),
         re.compile(r"(?:Invoice\s*)?Date\s*[:\s]\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
         re.compile(r"(?:Invoice\s*)?Date\s*[:\s]\s*(\w+\s+\d{1,2}[,]?\s+\d{4})", re.IGNORECASE),
         re.compile(r"(?:Datum|Date)\s*[:\s]\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
@@ -133,6 +151,8 @@ _PATTERNS = {
     ],
     "total": [
         re.compile(r"(?:Total|Balance\s*Due)\s*[:\s]\s*[\$€£]?\s?([\d,]+\.?\d*)", re.IGNORECASE),
+        re.compile(r"Net\s*[àa]\s*payer\s*TTC[\s\S]{0,80}?[€$£]\s*([\d.,]+\d)", re.IGNORECASE),
+        re.compile(r"\bTTC\s+([\d.,]+)\s*(?:EUR|€)", re.IGNORECASE),
         re.compile(r"(?:Gesamtbetrag|Betrag)\s*[:\s]\s*(?:CHF\s*)?([\d',]+\.?\d*)", re.IGNORECASE),
     ],
     "subtotal": [
@@ -146,7 +166,24 @@ _PATTERNS = {
         re.compile(r"([\$€£])\s*\d"),
         re.compile(r"(CHF|USD|EUR|GBP)\s", re.IGNORECASE),
     ],
+    "siret": [
+        re.compile(r"SIRET\s*:?\s*([\d\s]{14,20})", re.IGNORECASE),
+    ],
+    "vat_number": [
+        re.compile(r"(?:code\s*)?(?:TVA|VAT|USt-?Id)\s*:?\s*([A-Z]{2}\s*\d{2}\s*\d{9})\b", re.IGNORECASE),
+        re.compile(r"\b(FR\s*\d{2}\s*\d{9})\b"),
+        re.compile(r"\b(DE\s*\d{9})\b"),
+        re.compile(r"\b(GB\s*\d{9})\b"),
+    ],
+    "client_number": [
+        re.compile(r"Client\s*Factur[ée]\s*[-:]\s*(\d+)\s*Client\s*livr[ée]\s*[-:]\s*(\d+)", re.IGNORECASE),
+        re.compile(r"(?:No|N°|Numéro)\s*(?:de\s*)?Client\s*:?\s*([\d]+(?:\s*/\s*[\d]+)*)", re.IGNORECASE),
+        re.compile(r"(?:Customer|Account)\s*(?:No|Number|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+    ],
 }
+
+
+_SUPPLIER_REJECT = ("merci", "rappeler", "conditions", "veuillez", "page ", "date ", "n°", "no ")
 
 
 def _try_regex(raw_text: str) -> InvoiceFields:
@@ -157,13 +194,31 @@ def _try_regex(raw_text: str) -> InvoiceFields:
         for pat in patterns:
             m = pat.search(raw_text)
             if m:
-                extracted[field_name] = m.group(1).strip()
+                # Join all capture groups for multi-group patterns (e.g. client facturé / livré)
+                groups = [g for g in m.groups() if g is not None]
+                value = " / ".join(g.strip() for g in groups) if len(groups) > 1 else m.group(1).strip()
+                # Validate supplier — reject false positives and try next pattern
+                if field_name == "supplier":
+                    lower = value.lower()
+                    if any(r in lower for r in _SUPPLIER_REJECT) or len(value) < 3:
+                        continue
+                extracted[field_name] = value
                 break
 
     # Resolve currency symbol to code
     currency = extracted.get("currency")
     if currency in _CURRENCY_SYMBOLS:
         extracted["currency"] = _CURRENCY_SYMBOLS[currency]
+
+    # Normalize SIRET: remove spaces
+    siret = extracted.get("siret")
+    if siret:
+        siret = siret.replace(" ", "")
+
+    # Normalize VAT number: remove extra spaces
+    vat = extracted.get("vat_number")
+    if vat:
+        vat = re.sub(r"\s+", " ", vat).strip()
 
     return InvoiceFields(
         supplier=extracted.get("supplier"),
@@ -175,6 +230,9 @@ def _try_regex(raw_text: str) -> InvoiceFields:
         subtotal=_to_float(extracted.get("subtotal")),
         tax=_to_float(extracted.get("tax")),
         total=_to_float(extracted.get("total")),
+        siret=siret,
+        vat_number=vat,
+        client_number=extracted.get("client_number"),
     )
 
 
@@ -204,8 +262,13 @@ def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields |
     if not result:
         return None, 0.0
 
+    # Discard template name as supplier (e.g. "French Invoice Template")
+    issuer = result.get("issuer")
+    if issuer and "template" in issuer.lower():
+        issuer = None
+
     fields = InvoiceFields(
-        supplier=result.get("issuer"),
+        supplier=issuer,
         invoice_number=result.get("invoice_number"),
         invoice_date=_fmt_date(result.get("date")),
         due_date=_fmt_date(result.get("due_date")),
@@ -243,6 +306,9 @@ def _merge_fields(a: InvoiceFields | None, b: InvoiceFields | None) -> InvoiceFi
         subtotal=pick(a.subtotal, b.subtotal),
         tax=pick(a.tax, b.tax),
         total=pick(a.total, b.total),
+        siret=pick(a.siret, b.siret),
+        vat_number=pick(a.vat_number, b.vat_number),
+        client_number=pick(a.client_number, b.client_number),
         line_items=a.line_items or b.line_items,
     )
 
@@ -284,6 +350,9 @@ The JSON must have exactly these keys:
 - "subtotal": number or null
 - "tax": number or null
 - "total": number or null
+- "siret": string or null (SIRET number, 14 digits)
+- "vat_number": string or null (VAT/TVA number, e.g. "FR 32 784257164")
+- "client_number": string or null (customer/client account number)
 - "line_items": array of objects with keys "description" (string), "quantity" (number or null), "unit_price" (number or null), "amount" (number or null)
 
 Invoice text:
@@ -293,13 +362,13 @@ Invoice text:
 
 Return ONLY the JSON object:"""
 
+    # Initialize outside try so token counts survive parse errors
+    llm_info: dict = {"model": model}
+
     try:
-        message = client.messages.create(model=model, max_tokens=2000, messages=[{"role": "user", "content": prompt}])
-        llm_info = {
-            "model": model,
-            "input_tokens": getattr(message.usage, "input_tokens", 0),
-            "output_tokens": getattr(message.usage, "output_tokens", 0),
-        }
+        message = client.messages.create(model=model, max_tokens=8000, messages=[{"role": "user", "content": prompt}])
+        llm_info["input_tokens"] = getattr(message.usage, "input_tokens", 0)
+        llm_info["output_tokens"] = getattr(message.usage, "output_tokens", 0)
 
         response_text = ""
         for block in message.content:
@@ -323,19 +392,33 @@ Return ONLY the JSON object:"""
             subtotal=_to_float(data.get("subtotal")),
             tax=_to_float(data.get("tax")),
             total=_to_float(data.get("total")),
+            siret=data.get("siret"),
+            vat_number=data.get("vat_number"),
+            client_number=data.get("client_number"),
             line_items=line_items,
         )
         return fields, 0.85, llm_info
     except Exception as e:
         logger.error("LLM extraction failed: %s", e)
-        return InvoiceFields(), 0.0, {"model": model}
+        return InvoiceFields(), 0.0, llm_info
 
 
 def _to_float(val) -> float | None:
     if val is None:
         return None
     try:
-        s = str(val).replace(",", "").replace("'", "")
+        s = str(val).strip().replace(" ", "").replace("'", "")
+        if "," in s and "." in s:
+            # Determine format by which separator comes last
+            if s.rfind(",") > s.rfind("."):
+                # European: 1.234,56 → 1234.56
+                s = s.replace(".", "").replace(",", ".")
+            else:
+                # US: 1,353.08 → 1353.08
+                s = s.replace(",", "")
+        elif "," in s:
+            # 179,81 → 179.81 (single comma = decimal separator)
+            s = s.replace(",", ".")
         return float(s)
     except (ValueError, TypeError):
         return None

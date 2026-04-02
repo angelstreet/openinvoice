@@ -16,7 +16,7 @@ export default function PipelineInfo({ meta, lang }: Props) {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-lg p-3">
           <p className="text-xs text-slate-500">{t(lang, 'textMethod')}</p>
           <p className="text-sm font-medium text-slate-800 mt-0.5">{meta.text_method || '—'}</p>
