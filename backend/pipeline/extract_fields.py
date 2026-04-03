@@ -123,6 +123,13 @@ _CURRENCY_SYMBOLS = {"$": "USD", "€": "EUR", "£": "GBP", "CHF": "CHF"}
 
 _PATTERNS = {
     "supplier": [
+        # Company with legal form suffix (S.A.S., SARL, GmbH, Ltd, Inc, etc.)
+        re.compile(
+            r"([A-ZÀ-Ü][A-Za-zÀ-ü \-&.\']+\s+"
+            r"(?:S\.?A\.?S\.?|SAS|SARL|S\.?A\.?R\.?L\.?|GmbH|Ltd\.?|Inc\.?|AG|SE))"
+            r"(?:\s|$|[.,\n])",
+            re.MULTILINE | re.IGNORECASE,
+        ),
         re.compile(r"^([A-ZÀ-Ü][A-Za-zÀ-ü ,.\-&']+?)\s+INVOICE", re.MULTILINE),
         re.compile(r"^([A-ZÀ-Ü][A-Za-zÀ-ü ,.\-&']+?)\s+(?:Rechnung|Facture)\b", re.MULTILINE),
         # French invoices: first all-caps line (3+ words) is usually the supplier
@@ -137,10 +144,16 @@ _PATTERNS = {
     "invoice_number": [
         re.compile(r"Facture\s*n°\s*:?\s*(\d[\w\-/]*)", re.IGNORECASE),
         re.compile(r"(?:Invoice|Facture|Rechnung)\s*(?:No|Number|Nr)?\.?\s*[:#]?\s*(\d[\w\-/]+)", re.IGNORECASE),
+        # Standalone number after "FACTURE" header (e.g. "FACTURE COPIE 1\n4173807627")
+        re.compile(r"FACTURE(?:\s+COPIE\s+\d+)?\s*\n\s*(\d{5,})", re.IGNORECASE),
         re.compile(r"#\s*(\d+)"),
     ],
     "invoice_date": [
         re.compile(r"Date\s*de\s*[Ff]acture\s*:\s*(\d{1,2}[\.\-/][A-Za-z0-9]{2,3}[\.\-/]\d{2,4})", re.IGNORECASE),
+        # "Date fact 02/01/2023" (abbreviated)
+        re.compile(r"Date\s+fact\.?\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
+        # "Facture N° 4066892215 du\n31.12.2022"
+        re.compile(r"Facture\s+N°\s*\S+\s+du\s*\n?\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
         re.compile(r"(?:Invoice\s*)?Date\s*[:\s]\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
         re.compile(r"(?:Invoice\s*)?Date\s*[:\s]\s*(\w+\s+\d{1,2}[,]?\s+\d{4})", re.IGNORECASE),
         re.compile(r"(?:Datum|Date)\s*[:\s]\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})", re.IGNORECASE),
@@ -152,11 +165,21 @@ _PATTERNS = {
     "total": [
         re.compile(r"(?:Total|Balance\s*Due)\s*[:\s]\s*[\$€£]?\s?([\d,]+\.?\d*)", re.IGNORECASE),
         re.compile(r"Net\s*[àa]\s*payer\s*TTC[\s\S]{0,80}?[€$£]\s*([\d.,]+\d)", re.IGNORECASE),
+        # "TOTAL NET A PAYER TTC EUR 105,72" or "Montant TTC en EUR 1.179,32"
+        re.compile(r"(?:TOTAL\s+)?NET\s+[AÀ]\s+PAYER\s+TTC\s+(?:EUR|€)\s+([\d.,]+)", re.IGNORECASE),
+        re.compile(r"Montant\s+TTC\s+en\s+(?:EUR|€)\s+([\d.,]+)", re.IGNORECASE),
+        re.compile(r"Montant\s+de\s+facture\s+([\d.,]+)", re.IGNORECASE),
         re.compile(r"\bTTC\s+([\d.,]+)\s*(?:EUR|€)", re.IGNORECASE),
         re.compile(r"(?:Gesamtbetrag|Betrag)\s*[:\s]\s*(?:CHF\s*)?([\d',]+\.?\d*)", re.IGNORECASE),
     ],
     "subtotal": [
         re.compile(r"Subtotal\s*[:\s]\s*[\$€£]?\s?([\d,]+\.?\d*)", re.IGNORECASE),
+        # "Total net remises déduites.... 934,77"
+        re.compile(r"Total\s+net\s+(?:remises\s+d[ée]duites)?[.\s]*([\d.,]+)", re.IGNORECASE),
+        # "TOTAL MARCHANDISES 59,10 EUR"
+        re.compile(r"TOTAL\s+MARCHANDISES\s+([\d.,]+)", re.IGNORECASE),
+        # "Montant HT ... 87,10" in table headers
+        re.compile(r"Montant\s+HT[^0-9\n]{0,20}([\d.,]+)", re.IGNORECASE),
         re.compile(r"Zwischensumme\s*[:\s]\s*(?:CHF\s*)?([\d',]+\.?\d*)", re.IGNORECASE),
     ],
     "tax": [
@@ -177,13 +200,16 @@ _PATTERNS = {
     ],
     "client_number": [
         re.compile(r"Client\s*Factur[ée]\s*[-:]\s*(\d+)\s*Client\s*livr[ée]\s*[-:]\s*(\d+)", re.IGNORECASE),
-        re.compile(r"(?:No|N°|Numéro)\s*(?:de\s*)?Client\s*:?\s*([\d]+(?:\s*/\s*[\d]+)*)", re.IGNORECASE),
+        # "N° client 3056529", "Votre No Client: 35249318 / 35012882", "N° Client DO : 40112760"
+        re.compile(r"(?:No|N°|Numéro)\s*(?:de\s*)?Client\s*(?:DO|DF)?\s*:?\s*([\d]+(?:\s*/\s*[\d]+)*)", re.IGNORECASE),
         re.compile(r"(?:Customer|Account)\s*(?:No|Number|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
     ],
 }
 
 
-_SUPPLIER_REJECT = ("merci", "rappeler", "conditions", "veuillez", "page ", "date ", "n°", "no ")
+_SUPPLIER_REJECT = ("merci", "rappeler", "conditions", "veuillez", "page ", "date ", "n°", "no ",
+                     "france", "paris", "cedex", "institut", "centre de recherche", "université",
+                     "description", "récapitulatif", "total", "facture")
 
 
 def _try_regex(raw_text: str) -> InvoiceFields:
@@ -202,6 +228,10 @@ def _try_regex(raw_text: str) -> InvoiceFields:
                     lower = value.lower()
                     if any(r in lower for r in _SUPPLIER_REJECT) or len(value) < 3:
                         continue
+                    # Deduplicate repeated name (e.g. "VWR International S.A.S VWR International S.A.S")
+                    half = len(value) // 2
+                    if len(value) > 10 and value[:half].strip() == value[half:].strip():
+                        value = value[:half].strip()
                 extracted[field_name] = value
                 break
 
