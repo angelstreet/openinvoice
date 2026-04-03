@@ -51,7 +51,8 @@ def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) ->
     """Extract fields using cascading fallbacks:
     1) regex — fast, no cost
     2) invoice2data — only if regex missed required fields
-    3) LLM — only if both above missed required fields
+    3) edge-case regex — targeted patterns for known tricky formats, fills gaps
+    4) LLM — only if all above missed required fields
 
     Returns (fields, confidence, meta).
     """
@@ -64,38 +65,48 @@ def extract_fields_from_text(raw_text: str, file_bytes: bytes, filename: str) ->
     regex_found = _count_fields(regex_fields)
     meta.steps.append({"name": "regex", "duration": regex_dur, "fields_found": regex_found})
 
-    # If regex got all required fields, skip invoice2data and LLM
-    if _has_required(regex_fields):
-        meta.method = "regex"
-        confidence = min(0.95, 0.50 + regex_found * 0.075)
-        return regex_fields, confidence, meta
+    merged = regex_fields
 
-    # --- Layer 2: invoice2data fallback ---
-    t1 = time.time()
-    i2d_fields, _ = _try_invoice2data(file_bytes, filename)
-    i2d_dur = round(time.time() - t1, 4)
-    i2d_found = _count_fields(i2d_fields) if i2d_fields else 0
-    meta.steps.append({"name": "invoice2data", "duration": i2d_dur, "fields_found": i2d_found, "templates_checked": meta.templates_checked})
+    # If regex got all required fields, skip invoice2data but still try edge-cases for gaps
+    if not _has_required(merged):
+        # --- Layer 2: invoice2data fallback ---
+        t1 = time.time()
+        i2d_fields, _ = _try_invoice2data(file_bytes, filename)
+        i2d_dur = round(time.time() - t1, 4)
+        i2d_found = _count_fields(i2d_fields) if i2d_fields else 0
+        meta.steps.append({"name": "invoice2data", "duration": i2d_dur, "fields_found": i2d_found, "templates_checked": meta.templates_checked})
+        merged = _merge_fields(merged, i2d_fields)
 
-    # Merge regex + invoice2data
-    merged = _merge_fields(regex_fields, i2d_fields)
+    # --- Layer 3: Edge-case regex — fills missing fields with targeted patterns ---
+    missing = _missing_fields(merged)
+    if missing:
+        t2 = time.time()
+        edge_fields = _try_edge_cases(raw_text, missing)
+        edge_dur = round(time.time() - t2, 4)
+        edge_found = _count_fields(edge_fields)
+        if edge_found > 0:
+            meta.steps.append({"name": "edge_cases", "duration": edge_dur, "fields_found": edge_found, "filled": list(missing & _non_null_fields(edge_fields))})
+            merged = _merge_fields(merged, edge_fields)
+
     merged_found = _count_fields(merged)
 
     if _has_required(merged):
         sources = []
         if regex_found > 0:
             sources.append("regex")
-        if i2d_found > 0:
+        if any(s["name"] == "invoice2data" and s["fields_found"] > 0 for s in meta.steps):
             sources.append("invoice2data")
+        if any(s["name"] == "edge_cases" for s in meta.steps):
+            sources.append("edge_cases")
         meta.method = "+".join(sources) or "regex"
         confidence = min(0.95, 0.50 + merged_found * 0.075)
         return merged, confidence, meta
 
-    # --- Layer 3: LLM fallback ---
-    logger.info("Regex+invoice2data found %d fields, missing required — trying LLM", merged_found)
-    t2 = time.time()
+    # --- Layer 4: LLM fallback ---
+    logger.info("All regex layers found %d fields, missing required — trying LLM", merged_found)
+    t3 = time.time()
     llm_fields, llm_confidence, llm_info = _try_llm_extraction(raw_text)
-    llm_dur = round(time.time() - t2, 2)
+    llm_dur = round(time.time() - t3, 2)
     meta.llm_model = llm_info.get("model", "")
     meta.llm_input_tokens = llm_info.get("input_tokens", 0)
     meta.llm_output_tokens = llm_info.get("output_tokens", 0)
@@ -263,6 +274,72 @@ def _try_regex(raw_text: str) -> InvoiceFields:
         siret=siret,
         vat_number=vat,
         client_number=extracted.get("client_number"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for gap detection
+# ---------------------------------------------------------------------------
+
+_TRACKED_FIELDS = ("supplier", "client", "invoice_number", "invoice_date", "due_date",
+                   "currency", "subtotal", "tax", "total")
+
+
+def _missing_fields(fields: InvoiceFields | None) -> set[str]:
+    """Return set of tracked field names that are still None/empty."""
+    if not fields:
+        return set(_TRACKED_FIELDS)
+    return {f for f in _TRACKED_FIELDS if getattr(fields, f, None) in (None, "")}
+
+
+def _non_null_fields(fields: InvoiceFields | None) -> set[str]:
+    """Return set of tracked field names that have a value."""
+    if not fields:
+        return set()
+    return {f for f in _TRACKED_FIELDS if getattr(fields, f, None) not in (None, "")}
+
+
+# ---------------------------------------------------------------------------
+# Edge-case regex — targeted patterns for known tricky formats.
+# Only runs for fields that are still missing after regex + invoice2data.
+# Add new patterns here as we encounter new invoice formats.
+# ---------------------------------------------------------------------------
+
+_EDGE_CASE_PATTERNS: dict[str, list[tuple[re.Pattern, int | None]]] = {
+    # (pattern, group_index) — group_index=None means use group(1)
+    "subtotal": [
+        # Table header "Montant HT" followed by data row with underscores:
+        # "Montant HT Frais ...\n____8_7_,1_0____1_,_0_0_..."
+        (re.compile(r"Montant\s+HT\b.*?\n[_\s]*([\d_]+[.,][\d_]{2})", re.IGNORECASE), None),
+        # "Total HT ... 87,10" anywhere
+        (re.compile(r"Total\s+HT\s*:?\s*([\d.,]+)", re.IGNORECASE), None),
+    ],
+    "tax": [
+        # "Montant TVA" column in table row with underscores
+        (re.compile(r"Montant\s+TVA\b.*?\n.*?([\d_]+[.,][\d_]{2})[_\s]+[\d_.,]+[_\s]*(?:EUR|€)", re.IGNORECASE), None),
+    ],
+}
+
+
+def _try_edge_cases(raw_text: str, missing: set[str]) -> InvoiceFields:
+    """Run edge-case patterns only for fields in `missing`."""
+    extracted: dict[str, str | None] = {}
+
+    for field_name, patterns in _EDGE_CASE_PATTERNS.items():
+        if field_name not in missing:
+            continue
+        for pat, group_idx in patterns:
+            m = pat.search(raw_text)
+            if m:
+                value = m.group(1 if group_idx is None else group_idx).strip()
+                # Strip interleaved underscores from OCR/table artifacts (e.g. "_8_7_,1_0_")
+                value = value.replace("_", "")
+                extracted[field_name] = value
+                break
+
+    return InvoiceFields(
+        subtotal=_to_float(extracted.get("subtotal")),
+        tax=_to_float(extracted.get("tax")),
     )
 
 
