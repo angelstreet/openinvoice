@@ -451,8 +451,8 @@ The JSON must have exactly these keys:
 - "supplier": string or null (company that issued the invoice)
 - "client": string or null (person or company billed, from "Bill To" / "Destinataire")
 - "invoice_number": string or null
-- "invoice_date": string (YYYY-MM-DD) or null
-- "due_date": string (YYYY-MM-DD) or null
+- "invoice_date": string (DD/MM/YYYY) or null
+- "due_date": string (DD/MM/YYYY) or null
 - "currency": string (3-letter code) or null
 - "subtotal": number or null
 - "tax": number or null
@@ -532,11 +532,11 @@ def _to_float(val) -> float | None:
 
 
 def _normalize_date(val) -> str | None:
-    """Normalize any date value to YYYY-MM-DD (date only, no time)."""
+    """Normalize any date value to DD/MM/YYYY (date only, no time)."""
     if val is None:
         return None
     if hasattr(val, "strftime"):
-        return val.strftime("%Y-%m-%d")
+        return val.strftime("%d/%m/%Y")
 
     from datetime import datetime
 
@@ -557,7 +557,7 @@ def _normalize_date(val) -> str | None:
         "%d.%m.%y",    # 31.12.22
     ):
         try:
-            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(s, fmt).strftime("%d/%m/%Y")
         except ValueError:
             continue
     # If nothing matched, return as-is
