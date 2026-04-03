@@ -127,62 +127,71 @@ Power Automate then:
 
 ## STEP 2 -- Text extraction
 
-### Decision tree
-
 ```
-if PDF has text:
-    use pdfplumber / pdfminer
-else:
-    convert to image
-    run OCR
+PDF bytes → pdfplumber → 30+ chars per page?
+  ├─ YES → return text (method: pdfplumber)
+  └─ NO  → Tesseract OCR on full PDF (method: OCR)
 ```
 
-### OCR engines
-
-* PaddleOCR (preferred)
-* Tesseract OCR (fallback)
+* **pdfplumber** — primary, works on native-text PDFs
+* **Tesseract OCR** — fallback for scanned/image-based PDFs (via pdf2image + Pillow)
 
 ---
 
-## STEP 3 -- Field extraction
+## STEP 3 -- Field extraction (4-layer cascade)
 
-### Recommended hybrid
+Each layer only runs if previous layers didn't find all required fields (`supplier`, `invoice_number`, `total`). This minimizes cost (LLM calls) and latency.
 
-#### Layer 1 -- Rules/templates
+```
+Layer 1: Regex ──── found required? ──→ YES ──→ Layer 3 (fill gaps) ──→ done
+                         │ NO
+                         ▼
+Layer 2: invoice2data ── found required? ──→ YES ──→ Layer 3 (fill gaps) ──→ done
+                              │ NO
+                              ▼
+Layer 3: Edge-case regex ─── found required? ──→ YES ──→ done
+                                  │ NO
+                                  ▼
+Layer 4: LLM fallback ─────────────────────────────→ done
+```
 
-Use:
+### Layer 1 — Custom regex (~1ms, free)
 
-* invoice2data
+Pattern-based extraction on pdfplumber text. Covers:
 
-Pros:
+* **English**: Invoice, Bill To, Date, Total, Balance Due, Tax
+* **French**: Facture, Facture n°, Date fact, Date de facture, Net à payer TTC, Montant TTC, Échéance, TVA, SIRET
+* **German**: Rechnung, Betrag, MwSt, Zahlbar bis
+* **Swiss**: CHF, Datum, Fällig
 
-* fast
-* deterministic
-* good for known vendors
+Also extracts: supplier (via legal-form suffix — S.A.S., SARL, GmbH, Ltd, Inc), client, client_number, currency, SIRET, VAT number.
 
-#### Layer 2 -- LLM fallback
+Stops here if all required fields found (most invoices).
 
-Use when:
+### Layer 2 — invoice2data templates (~30ms, free)
 
-* template fails
-* layout unknown
-* OCR noisy
+192 built-in vendor-specific templates + 3 custom templates in `/backend/templates/`. Only runs when Layer 1 missed required fields. Results merged with Layer 1 (Layer 1 takes priority).
 
-Input:
+### Layer 3 — Edge-case regex (free)
 
-* raw text or image
+Targeted patterns for known tricky formats that standard regex can't handle (e.g. table-column layouts with underscore artifacts, values on separate lines from their headers). **Only runs for fields still missing** — never re-extracts fields already found.
 
-Output:
+This is the place to add new patterns as we encounter invoice formats that break Layers 1-2, without falling back to LLM.
 
-* structured JSON
+### Layer 4 — LLM fallback (~2-5s, ~$0.001/invoice)
+
+MiniMax M2.7 via Anthropic-compatible API. Sends first 8000 chars of raw text, expects structured JSON. Only runs when all regex layers failed to find required fields. Returns confidence 0.85.
 
 ---
 
-## Final validation
+## Validation
 
-* totals match (subtotal + tax = total)
-* currency present
-* required fields exist
+* Required fields present (supplier, invoice_number, invoice_date, total)
+* Invoice number doesn't look like a date
+* Totals arithmetic: |subtotal + tax - total| ≤ 0.02
+* Tax rate sanity: tax/subtotal ≤ 30%
+* Line items sum matches subtotal
+* Duplicate detection (same invoice_number + total + supplier)
 
 ---
 
@@ -360,21 +369,26 @@ Users open:
 # 8. Architecture Diagram (simplified)
 
 ```
-[Outlook / SharePoint]
+[Outlook / SharePoint / Manual upload]
         |
-[Power Automate]
+[Power Automate / Webhook / UI]
         |
 [FastAPI API]
         |
-[Processing Pipeline]
-  - PDF parse
-  - OCR
-  - invoice2data
-  - LLM fallback
+[Text extraction]
+  pdfplumber → Tesseract OCR fallback
         |
-[Database]
+[Field extraction — 4-layer cascade]
+  1. Custom regex
+  2. invoice2data (192 templates)
+  3. Edge-case regex (gap filler)
+  4. LLM fallback (MiniMax M2.7)
         |
-[Teams UI / API / Export]
+[Validation + AI feedback]
+        |
+[SQLite DB]
+        |
+[Teams UI / React UI / API / CSV export]
 ```
 
 ---
@@ -390,10 +404,11 @@ Users open:
 
 ## Processing
 
-* pdfplumber
-* PaddleOCR
-* invoice2data
-* LLM (optional fallback)
+* pdfplumber (text extraction)
+* Tesseract OCR + pdf2image (scanned PDF fallback)
+* Custom regex (primary field extraction)
+* invoice2data (192 vendor templates)
+* MiniMax M2.7 LLM (last-resort fallback)
 
 ## Frontend
 
