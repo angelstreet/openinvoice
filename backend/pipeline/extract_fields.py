@@ -265,8 +265,8 @@ def _try_regex(raw_text: str) -> InvoiceFields:
         supplier=extracted.get("supplier"),
         client=extracted.get("client"),
         invoice_number=extracted.get("invoice_number"),
-        invoice_date=extracted.get("invoice_date"),
-        due_date=extracted.get("due_date"),
+        invoice_date=_normalize_date(extracted.get("invoice_date")),
+        due_date=_normalize_date(extracted.get("due_date")),
         currency=extracted.get("currency"),
         subtotal=_to_float(extracted.get("subtotal")),
         tax=_to_float(extracted.get("tax")),
@@ -377,8 +377,8 @@ def _try_invoice2data(file_bytes: bytes, filename: str) -> tuple[InvoiceFields |
     fields = InvoiceFields(
         supplier=issuer,
         invoice_number=result.get("invoice_number"),
-        invoice_date=_fmt_date(result.get("date")),
-        due_date=_fmt_date(result.get("due_date")),
+        invoice_date=_normalize_date(result.get("date")),
+        due_date=_normalize_date(result.get("due_date")),
         currency=result.get("currency"),
         total=_to_float(result.get("amount")),
     )
@@ -531,9 +531,34 @@ def _to_float(val) -> float | None:
         return None
 
 
-def _fmt_date(val) -> str | None:
+def _normalize_date(val) -> str | None:
+    """Normalize any date value to YYYY-MM-DD (date only, no time)."""
     if val is None:
         return None
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%d")
-    return str(val)
+
+    from datetime import datetime
+
+    s = str(val).strip()
+    # Try common formats
+    for fmt in (
+        "%d/%m/%Y",    # 02/01/2023
+        "%d.%m.%Y",    # 31.12.2022
+        "%d-%m-%Y",    # 02-01-2023
+        "%Y-%m-%d",    # 2023-01-02
+        "%b %d %Y",    # May 12 2012
+        "%b %d, %Y",   # May 12, 2012
+        "%B %d %Y",    # January 02 2023
+        "%B %d, %Y",   # January 02, 2023
+        "%d %b %Y",    # 02 Jan 2023
+        "%d %B %Y",    # 02 January 2023
+        "%d/%m/%y",    # 02/01/23
+        "%d.%m.%y",    # 31.12.22
+    ):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    # If nothing matched, return as-is
+    return s
