@@ -311,14 +311,22 @@ _EDGE_CASE_PATTERNS: dict[str, list[tuple[re.Pattern, int | None]]] = {
         # Table header "Montant HT" followed by data row with underscores:
         # "Montant HT Frais ...\n____8_7_,1_0____1_,_0_0_..."
         (re.compile(r"Montant\s+HT\b.*?\n[_\s]*([\d_]+[.,][\d_]{2})", re.IGNORECASE), None),
+        # "Net à payer HT 149,84"
+        (re.compile(r"Net\s+[àa]\s+payer\s+HT\s+([\d.,]+)", re.IGNORECASE), None),
         # "Total HT ... 87,10" anywhere
         (re.compile(r"Total\s+HT\s*:?\s*([\d.,]+)", re.IGNORECASE), None),
     ],
     "tax": [
         # "Montant TVA" column in table row with underscores
         (re.compile(r"Montant\s+TVA\b.*?\n.*?([\d_]+[.,][\d_]{2})[_\s]+[\d_.,]+[_\s]*(?:EUR|€)", re.IGNORECASE), None),
+        # "Montant de la TVA 29,97"
+        (re.compile(r"Montant\s+de\s+la\s+TVA\s+([\d.,]+)", re.IGNORECASE), None),
     ],
 }
+
+# Words that indicate a line is an address, not a company name
+_ADDRESS_WORDS = frozenset({"rue", "bd", "boulevard", "avenue", "cedex", "bp", "immeuble",
+                            "zone", "parc", "allée", "impasse", "chemin", "place"})
 
 
 def _try_edge_cases(raw_text: str, missing: set[str]) -> InvoiceFields:
@@ -337,10 +345,44 @@ def _try_edge_cases(raw_text: str, missing: set[str]) -> InvoiceFields:
                 extracted[field_name] = value
                 break
 
+    # --- Supplier: find company name near SIRET (common in French invoices) ---
+    if "supplier" in missing and "supplier" not in extracted:
+        supplier = _find_supplier_near_siret(raw_text)
+        if supplier:
+            extracted["supplier"] = supplier
+
     return InvoiceFields(
+        supplier=extracted.get("supplier"),
         subtotal=_to_float(extracted.get("subtotal")),
         tax=_to_float(extracted.get("tax")),
     )
+
+
+def _find_supplier_near_siret(raw_text: str) -> str | None:
+    """Look for company name in the lines before the first SIRET mention."""
+    m = re.search(r"N°?\s*SIRET", raw_text, re.IGNORECASE)
+    if not m:
+        return None
+
+    lines = [l.strip() for l in raw_text[:m.start()].strip().split("\n") if l.strip()]
+    for line in lines:
+        # Clean trailing IBAN/code fragments first
+        clean = re.sub(r"\s*IBAN.*", "", line).strip()
+        clean = re.sub(r"\s*Code\s*:.*", "", clean).strip()
+        words = clean.split()
+        if len(words) < 2:
+            continue
+        if clean[0].isdigit():
+            continue
+        # Skip addresses, phone numbers, emails, URLs, boilerplate
+        if any(w.lower() in _ADDRESS_WORDS for w in words):
+            continue
+        if any(x in clean.lower() for x in ("@", "http", "tél", "tel:", "fax", "mail", "swift",
+                                             "remettre", "page ", "facture", "compte", "conditions")):
+            continue
+        if len(clean) >= 5:
+            return clean
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +484,7 @@ def _try_llm_extraction(raw_text: str) -> tuple[InvoiceFields, float, dict]:
         logger.warning("MINIMAX_API_KEY not set, skipping LLM extraction")
         return InvoiceFields(), 0.0, {}
 
-    client = anthropic.Anthropic(api_key=api_key, base_url="https://api.minimax.io/anthropic")
+    client = anthropic.Anthropic(api_key=api_key, base_url="https://api.minimax.io/anthropic", timeout=15.0)
     model = "MiniMax-M2.7-highspeed"
 
     prompt = f"""Extract structured invoice data from the following text. Return ONLY valid JSON with no markdown, no explanation.
@@ -546,6 +588,7 @@ def _normalize_date(val) -> str | None:
         "%d/%m/%Y",    # 02/01/2023
         "%d.%m.%Y",    # 31.12.2022
         "%d-%m-%Y",    # 02-01-2023
+        "%d-%b-%Y",    # 02-JAN-2023
         "%Y-%m-%d",    # 2023-01-02
         "%b %d %Y",    # May 12 2012
         "%b %d, %Y",   # May 12, 2012
