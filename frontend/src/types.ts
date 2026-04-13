@@ -18,6 +18,7 @@ export interface ExtractedFields {
   siret: string | null;
   vat_number: string | null;
   client_number: string | null;
+  order_number: string | null;
   line_items: LineItem[];
 }
 

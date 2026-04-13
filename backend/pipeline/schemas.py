@@ -23,6 +23,7 @@ class InvoiceFields(BaseModel):
     siret: str | None = None
     vat_number: str | None = None
     client_number: str | None = None
+    order_number: str | None = None
     line_items: list[LineItem] = Field(default_factory=list)
 
 

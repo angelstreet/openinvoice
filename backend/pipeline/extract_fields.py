@@ -215,6 +215,16 @@ _PATTERNS = {
         re.compile(r"(?:No|N°|Numéro)\s*(?:de\s*)?Client\s*(?:DO|DF)?\s*:?\s*([\d]+(?:\s*/\s*[\d]+)*)", re.IGNORECASE),
         re.compile(r"(?:Customer|Account)\s*(?:No|Number|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
     ],
+    "order_number": [
+        # "N° Commande : 12345", "Numéro de commande 12345", "Bon de commande 12345"
+        re.compile(r"(?:N°|No|Numéro)\s*(?:de\s*)?Commande\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+        re.compile(r"Bon\s*de\s*commande\s*(?:N°|No)?\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+        re.compile(r"Commande\s*(?:N°|No|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+        # English / German: "PO Number: ABC123", "Order No: 12345", "Purchase Order 12345", "Bestellnummer 12345"
+        re.compile(r"(?:Purchase\s*Order|PO)\s*(?:Number|No|#)?\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+        re.compile(r"Order\s*(?:Number|No|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+        re.compile(r"Bestellnummer\s*:?\s*([\w\-/]+)", re.IGNORECASE),
+    ],
 }
 
 
@@ -274,6 +284,7 @@ def _try_regex(raw_text: str) -> InvoiceFields:
         siret=siret,
         vat_number=vat,
         client_number=extracted.get("client_number"),
+        order_number=extracted.get("order_number"),
     )
 
 
@@ -458,6 +469,7 @@ def _merge_fields(a: InvoiceFields | None, b: InvoiceFields | None) -> InvoiceFi
         siret=pick(a.siret, b.siret),
         vat_number=pick(a.vat_number, b.vat_number),
         client_number=pick(a.client_number, b.client_number),
+        order_number=pick(a.order_number, b.order_number),
         line_items=a.line_items or b.line_items,
     )
 
@@ -502,6 +514,7 @@ The JSON must have exactly these keys:
 - "siret": string or null (SIRET number, 14 digits)
 - "vat_number": string or null (VAT/TVA number, e.g. "FR 32 784257164")
 - "client_number": string or null (customer/client account number)
+- "order_number": string or null (order / purchase order number, e.g. "N° Commande", "Bon de commande", "PO Number")
 - "line_items": array of objects with keys "description" (string), "quantity" (number or null), "unit_price" (number or null), "amount" (number or null)
 
 Invoice text:
@@ -544,6 +557,7 @@ Return ONLY the JSON object:"""
             siret=data.get("siret"),
             vat_number=data.get("vat_number"),
             client_number=data.get("client_number"),
+            order_number=data.get("order_number"),
             line_items=line_items,
         )
         return fields, 0.85, llm_info

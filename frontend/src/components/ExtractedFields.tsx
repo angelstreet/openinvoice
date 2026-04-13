@@ -121,6 +121,7 @@ export default function ExtractedFields({ result, lang, correctedFields, onField
           <EditableFieldRow label={t(lang, 'siret')} value={fields.siret} fieldKey="siret" corrected={cf.siret} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow label={t(lang, 'vatNumber')} value={fields.vat_number} fieldKey="vat_number" corrected={cf.vat_number} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow label={t(lang, 'clientNumber')} value={fields.client_number} fieldKey="client_number" corrected={cf.client_number} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
+          <EditableFieldRow label={t(lang, 'orderNumber')} value={fields.order_number} fieldKey="order_number" corrected={cf.order_number} onUpdate={onFieldUpdate} editable={editable} noValue={noValue} />
           <EditableFieldRow
             label={t(lang, 'subtotal')}
             value={formatAmount(fields.subtotal, fields.currency, noValue)}
