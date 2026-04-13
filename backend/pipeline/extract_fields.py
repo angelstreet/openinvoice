@@ -216,6 +216,9 @@ _PATTERNS = {
         re.compile(r"(?:Customer|Account)\s*(?:No|Number|#)\s*:?\s*([\w\-/]+)", re.IGNORECASE),
     ],
     "order_number": [
+        # "Votre commande: 4A-12724/22 U932" — customer PO, takes priority over supplier's internal order
+        # Capture until " Date ..." marker or end of line (values may contain spaces, e.g. "4A-12724/22 U932")
+        re.compile(r"Votre\s*commande\s*:?\s*(.+?)(?:\s+Date\b|\s*$)", re.IGNORECASE | re.MULTILINE),
         # "N° Commande : 12345", "Numéro de commande 12345", "Bon de commande 12345"
         re.compile(r"(?:N°|No|Numéro)\s*(?:de\s*)?Commande\s*:?\s*([\w\-/]+)", re.IGNORECASE),
         re.compile(r"Bon\s*de\s*commande\s*(?:N°|No)?\s*:?\s*([\w\-/]+)", re.IGNORECASE),
