@@ -2,7 +2,11 @@
 
 **AI-powered invoice data extraction** — upload a PDF or image, get structured data back in seconds.
 
+**[Try it now →](https://openinvoice.angelstreet.io/)**
+
 OpenInvoice extracts key fields from invoices using a cascading pipeline: fast regex patterns first, template matching second, and LLM as a last resort. No manual data entry, no per-document fees from third-party OCR APIs.
+
+![OpenInvoice extraction screenshot](docs/screenshots/app.png)
 
 ## What it does
 
